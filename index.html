@@ -90,11 +90,15 @@ function renderReceipt() {
     const container = document.getElementById('receipt');
     const printBtn = document.getElementById('printBtn');
     
+    console.log('renderReceipt called with params:', params);
+    console.log('Print button element:', printBtn);
+    
     if (params.data) {
         try {
             const decodedHTML = decodeCompressedHTML(params.data);
             container.innerHTML = decodedHTML;
             printBtn.disabled = false;
+            console.log('Receipt rendered successfully, print button enabled');
             
             // Auto-print if print parameter is true
             if (params.print) {
@@ -110,25 +114,67 @@ function renderReceipt() {
         }
     } else {
         container.innerHTML = '<p>No receipt data provided. Add ?data=yourBase64Data to the URL.</p>';
+        console.log('No receipt data provided');
     }
 }
 
-// Simple print function using native browser print dialog
+// Enhanced print function with multiple fallback methods
 function printReceipt() {
-    // Just use the browser's native print functionality
-    window.print();
+    console.log('Print button clicked - attempting to print...');
+    
+    try {
+        // Method 1: Direct window.print()
+        console.log('Trying Method 1: Direct window.print()');
+        window.print();
+        console.log('Print dialog should have opened');
+        return;
+    } catch (error) {
+        console.error('Method 1 failed:', error);
+    }
+    
+    try {
+        // Method 2: Focus window first, then print
+        console.log('Trying Method 2: Focus + print');
+        window.focus();
+        setTimeout(() => {
+            window.print();
+        }, 100);
+        return;
+    } catch (error) {
+        console.error('Method 2 failed:', error);
+    }
+    
+    try {
+        // Method 3: Create print event
+        console.log('Trying Method 3: Print event');
+        const printEvent = new Event('beforeprint');
+        window.dispatchEvent(printEvent);
+        window.print();
+        return;
+    } catch (error) {
+        console.error('Method 3 failed:', error);
+    }
+    
+    // If all methods fail, show user instruction
+    alert('Unable to open print dialog automatically. Please use Ctrl+P (or Cmd+P on Mac) to print this page.');
 }
 
 // Button to manually print
-document.getElementById('printBtn').addEventListener('click', printReceipt);
+document.getElementById('printBtn').addEventListener('click', function(event) {
+    console.log('Print button event triggered');
+    event.preventDefault(); // Prevent any default behavior
+    printReceipt();
+});
 
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, initializing receipt loader...');
     renderReceipt();
 });
 
 // Also render on page load (backup)
 window.addEventListener('load', function() {
+    console.log('Window loaded, rendering receipt...');
     renderReceipt();
 });
 </script>
