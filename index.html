@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Receipt Loader - Enhanced</title>
+<title>Receipt Loader</title>
 <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 <style>
   body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background: #f5f5f5; }
@@ -18,90 +18,9 @@
   }
   .loading { text-align: center; color: #666; padding: 40px; }
   
-  .controls {
-    background: white;
-    padding: 20px;
-    margin: 20px auto;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    text-align: center;
-  }
-  
-  .btn {
-    display: inline-block;
-    margin: 5px 10px;
-    padding: 12px 24px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    text-decoration: none;
-    transition: background-color 0.3s;
-  }
-  
-  .btn-primary { background: #007cba; color: white; }
-  .btn-primary:hover { background: #005a87; }
-  .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
-  
-  .btn-secondary { background: #6c757d; color: white; }
-  .btn-secondary:hover { background: #545b62; }
-  
-  .btn-success { background: #28a745; color: white; }
-  .btn-success:hover { background: #218838; }
-  
-  .browser-info {
-    background: #e3f2fd;
-    border: 1px solid #2196f3;
-    border-radius: 4px;
-    padding: 15px;
-    margin: 15px 0;
-    font-size: 13px;
-  }
-  
-  .error-info {
-    background: #ffebee;
-    border: 1px solid #f44336;
-    border-radius: 4px;
-    padding: 15px;
-    margin: 15px 0;
-    font-size: 13px;
-  }
-  
-  .success-info {
-    background: #e8f5e8;
-    border: 1px solid #4caf50;
-    border-radius: 4px;
-    padding: 15px;
-    margin: 15px 0;
-    font-size: 13px;
-  }
-  
-  .instructions {
-    background: #fff3cd;
-    border: 1px solid #ffc107;
-    border-radius: 4px;
-    padding: 15px;
-    margin: 15px 0;
-    font-size: 13px;
-  }
-  
-  #debugLog {
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    padding: 10px;
-    margin: 15px 0;
-    font-family: monospace;
-    font-size: 12px;
-    max-height: 200px;
-    overflow-y: auto;
-    display: none;
-  }
-  
   /* Print-specific styles */
   @media print {
     body { margin: 0; padding: 0; background: white; }
-    .controls, .browser-info, .error-info, .instructions, #debugLog { display: none !important; }
     .container { max-width: none; }
     .receipt-container { 
       max-width: none; 
@@ -116,241 +35,12 @@
 </head>
 <body>
 <div class="container">
-  <div class="controls">
-    <div id="browserDetection" class="browser-info"></div>
-    
-    <div id="standardControls">
-      <button id="printBtn" class="btn btn-primary" disabled>🖨️ Print Receipt</button>
-      <button id="copyBtn" class="btn btn-secondary">📋 Copy Receipt</button>
-      <button id="shareBtn" class="btn btn-success" style="display:none;">📤 Share Receipt</button>
-    </div>
-    
-    <!-- Bluefy-specific browser switching controls (only shown in Bluefy) -->
-    <div id="bluefyControls" style="display:none; margin-top: 15px; padding-top: 15px; border-top: 2px solid #007cba;">
-      <div style="margin-bottom: 15px; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
-        <strong>⚠️ Bluefy Detected:</strong> This browser has limited print support.<br>
-        <strong>🚀 Solution:</strong> Open this receipt in Chrome for full print functionality.
-      </div>
-      <button id="openChromeBtn" class="btn btn-success">🌐 Open in Chrome</button>
-    </div>
-    
-    <div id="printStatus"></div>
-    
-    <details>
-      <summary>🔧 Debug Information</summary>
-      <button id="toggleDebug" class="btn btn-secondary">Show Debug Log</button>
-      <div id="debugLog"></div>
-    </details>
-  </div>
-
   <div class="receipt-container" id="receipt">
     <div class="loading">Loading receipt...</div>
   </div>
 </div>
 
 <script>
-// Enhanced logging system
-const debugLog = document.getElementById('debugLog');
-let debugVisible = false;
-
-function log(message, type = 'info') {
-  const timestamp = new Date().toLocaleTimeString();
-  const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
-  
-  console.log(logEntry);
-  
-  if (debugLog) {
-    const color = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#6c757d';
-    debugLog.innerHTML += `<div style="color: ${color}">${logEntry}</div>`;
-    debugLog.scrollTop = debugLog.scrollHeight;
-  }
-}
-
-// Browser detection and capabilities
-function detectBrowserCapabilities() {
-  const userAgent = navigator.userAgent;
-  const browserInfo = document.getElementById('browserDetection');
-  let isBluefy = false;
-  let browserName = 'Unknown';
-  let printSupported = true;
-  
-  // Detect specific browsers
-  if (userAgent.includes('Bluefy')) {
-    isBluefy = true;
-    browserName = 'Bluefy Web BLE Browser';
-    printSupported = false;
-  } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
-    browserName = 'Safari';
-  } else if (userAgent.includes('Chrome')) {
-    browserName = 'Chrome';
-  } else if (userAgent.includes('Firefox')) {
-    browserName = 'Firefox';
-  } else if (userAgent.includes('Edge')) {
-    browserName = 'Edge';
-  }
-  
-  log(`Browser detected: ${browserName}`, 'info');
-  log(`User Agent: ${userAgent}`, 'info');
-  log(`Print API available: ${typeof window.print === 'function'}`, 'info');
-  
-  // Hide the browser info box completely
-  if (browserInfo) {
-    browserInfo.style.display = 'none';
-  }
-  
-  return {
-    isBluefy,
-    browserName,
-    printSupported
-  };
-}
-
-// Print receipt
-function printReceipt() {
-  try {
-    log('Print function called', 'info');
-    
-    if (typeof window.print === 'function') {
-      window.print();
-      log('Print dialog opened successfully', 'success');
-    } else {
-      throw new Error('Print function not available');
-    }
-    
-  } catch (error) {
-    log(`Print failed: ${error.message}`, 'error');
-    
-    const printStatus = document.getElementById('printStatus');
-    if (printStatus) {
-      printStatus.innerHTML = `
-        <div class="error-info">
-          <strong>❌ Print Error:</strong> ${error.message}<br>
-          <strong>💡 Try:</strong> Use Ctrl+P (Windows) or Cmd+P (Mac), or copy the receipt and paste into a document to print.
-        </div>
-      `;
-    }
-  }
-}
-
-// Open current page in Chrome
-function openInChrome() {
-  const currentURL = window.location.href;
-  
-  try {
-    log('Attempting to open in Chrome with multiple unconventional methods', 'info');
-    
-    // Try Chrome URL scheme for iOS
-    let chromeURL;
-    if (currentURL.startsWith('https://')) {
-      chromeURL = currentURL.replace('https://', 'googlechromes://');
-    } else if (currentURL.startsWith('http://')) {
-      chromeURL = currentURL.replace('http://', 'googlechrome://');
-    } else {
-      chromeURL = 'googlechromes://' + currentURL;
-    }
-    
-    log(`Chrome URL scheme: ${chromeURL}`, 'info');
-    showTemporaryMessage('🌐 Trying 6 different methods to switch to Chrome...');
-    
-    // Method 1: Try invisible iframe
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.src = chromeURL;
-    document.body.appendChild(iframe);
-    setTimeout(() => {
-      try { document.body.removeChild(iframe); } catch(e) {}
-    }, 1000);
-    
-    // Method 2: Try image src (sometimes triggers navigation)
-    setTimeout(() => {
-      const img = document.createElement('img');
-      img.style.display = 'none';
-      img.src = chromeURL;
-      document.body.appendChild(img);
-      setTimeout(() => {
-        try { document.body.removeChild(img); } catch(e) {}
-      }, 1000);
-    }, 200);
-    
-    // Method 3: Try object embed
-    setTimeout(() => {
-      const obj = document.createElement('object');
-      obj.data = chromeURL;
-      obj.style.display = 'none';
-      document.body.appendChild(obj);
-      setTimeout(() => {
-        try { document.body.removeChild(obj); } catch(e) {}
-      }, 1000);
-    }, 400);
-    
-    // Method 4: Try creating a blob URL with redirect
-    setTimeout(() => {
-      const redirectHTML = `<script>window.location.href='${chromeURL}';</script>`;
-      const blob = new Blob([redirectHTML], {type: 'text/html'});
-      const blobURL = URL.createObjectURL(blob);
-      const blobWindow = window.open(blobURL, '_blank');
-      setTimeout(() => {
-        try { 
-          blobWindow.close(); 
-          URL.revokeObjectURL(blobURL);
-        } catch(e) {}
-      }, 2000);
-    }, 600);
-    
-    // Method 5: Try direct location assignment after delay
-    setTimeout(() => {
-      window.location.assign(chromeURL);
-    }, 800);
-    
-    // Method 6: Try location replace as last resort
-    setTimeout(() => {
-      window.location.replace(chromeURL);
-    }, 1000);
-    
-    log('All 6 Chrome opening methods attempted', 'success');
-    
-  } catch (error) {
-    log(`Open in Chrome failed: ${error.message}`, 'error');
-    showTemporaryMessage('❌ All 6 methods failed. Bluefy is aggressively blocking Chrome switching.');
-  }
-}
-
-// Generate QR code instructions
-function generateQRInstructions() {
-  const currentURL = window.location.href;
-  const printStatus = document.getElementById('printStatus');
-  
-  const instructions = `
-    <div class="info" style="margin: 15px 0; padding: 15px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px;">
-      <strong>📱 Easy Mobile Access:</strong><br>
-      <strong>Option 1:</strong> URL copied to clipboard - paste in Safari or Chrome<br>
-      <strong>Option 2:</strong> Use QR code scanner to scan this URL:<br>
-      <div style="word-break: break-all; font-family: monospace; background: white; padding: 10px; margin: 10px 0; border: 1px solid #ddd;">
-        ${currentURL}
-      </div>
-      <strong>Option 3:</strong> Try the browser buttons above<br>
-      <em>💡 Pro tip: Once opened in Safari/Chrome, press Ctrl+P or Cmd+P to print!</em>
-    </div>
-  `;
-  
-  if (printStatus) {
-    printStatus.innerHTML = instructions;
-  }
-  
-  log('QR instructions displayed', 'info');
-}
-
-// Show temporary status message
-function showTemporaryMessage(message) {
-  const printStatus = document.getElementById('printStatus');
-  if (printStatus) {
-    printStatus.innerHTML = `<div class="success-info">${message}</div>`;
-    setTimeout(() => {
-      printStatus.innerHTML = '';
-    }, 5000);
-  }
-}
-
 // Helper: get URL parameters
 function getParams() {
   const search = new URLSearchParams(window.location.search);
@@ -376,21 +66,17 @@ function decodeCompressedHTML(data) {
     const base64Decoded = atob(decodedData);
     
     if (base64Decoded.startsWith('<!DOCTYPE html>') || base64Decoded.startsWith('<html')) {
-      log('Detected uncompressed base64 HTML', 'info');
       return base64Decoded;
     }
     
     try {
       const decompressed = pako.inflate(base64Decoded, { to: 'string' });
-      log('Detected compressed base64 HTML', 'info');
       return decompressed;
     } catch (pakoError) {
-      log('Pako decompression failed, returning base64 decoded content', 'info');
       return base64Decoded;
     }
     
   } catch(e) {
-    log(`Error decoding receipt: ${e.message}`, 'error');
     return '<p style="color: red;">Error decoding receipt data. Please check the URL format.</p>';
   }
 }
@@ -399,83 +85,32 @@ function decodeCompressedHTML(data) {
 function renderReceipt() {
   const params = getParams();
   const container = document.getElementById('receipt');
-  const printBtn = document.getElementById('printBtn');
-  
-  log('renderReceipt called', 'info');
-  log(`Parameters: data=${params.data ? 'present' : 'missing'}, print=${params.print}`, 'info');
   
   if (params.data) {
     try {
       const decodedHTML = decodeCompressedHTML(params.data);
       container.innerHTML = decodedHTML;
-      printBtn.disabled = false;
-      log('Receipt rendered successfully, print button enabled', 'success');
       
       // Auto-print if requested
       if (params.print) {
         setTimeout(() => {
-          log('Auto-printing receipt...', 'info');
-          printReceipt();
+          window.print();
         }, 500);
       }
     } catch(e) {
       container.innerHTML = '<p style="color: red;">Error rendering receipt</p>';
-      log(`Error rendering receipt: ${e.message}`, 'error');
     }
   } else {
     container.innerHTML = '<p>No receipt data provided. Add ?data=yourBase64Data to the URL.</p>';
-    log('No receipt data provided', 'info');
   }
 }
 
-// Event listeners
+// Initialize
 document.addEventListener('DOMContentLoaded', function() {
-  log('DOM loaded, initializing...', 'info');
-  
-  // Detect browser capabilities
-  const browserCaps = detectBrowserCapabilities();
-  
-  // Conditionally show controls based on browser
-  if (browserCaps.isBluefy) {
-    // In Bluefy: Hide standard controls, show browser switching
-    document.getElementById('standardControls').style.display = 'none';
-    document.getElementById('bluefyControls').style.display = 'block';
-    log('Bluefy detected: Showing browser switching controls, hiding print button', 'info');
-  } else {
-    // In Safari/Chrome/other: Show standard controls, hide browser switching
-    document.getElementById('standardControls').style.display = 'block';
-    document.getElementById('bluefyControls').style.display = 'none';
-    log(`Standard browser detected (${browserCaps.browserName}): Showing print controls`, 'info');
-  }
-  
-  // Button event listeners
-  document.getElementById('printBtn').addEventListener('click', printReceipt);
-  
-  // Bluefy-specific button listeners
-  document.getElementById('openChromeBtn').addEventListener('click', openInChrome);
-  
-  // Debug toggle
-  document.getElementById('toggleDebug').addEventListener('click', function() {
-    debugVisible = !debugVisible;
-    debugLog.style.display = debugVisible ? 'block' : 'none';
-    this.textContent = debugVisible ? 'Hide Debug Log' : 'Show Debug Log';
-  });
-  
-  // Keyboard shortcuts
-  document.addEventListener('keydown', function(e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
-      // Let the browser handle Ctrl+P naturally
-      log('Keyboard shortcut Ctrl+P detected', 'info');
-    }
-  });
-  
-  // Initialize the receipt
   renderReceipt();
 });
 
-// Window load backup
 window.addEventListener('load', function() {
-  log('Window loaded', 'info');
   renderReceipt();
 });
 </script>
