@@ -117,7 +117,6 @@
 <body>
 <div class="container">
   <div class="controls">
-    <h2>Receipt Printer</h2>
     <div id="browserDetection" class="browser-info"></div>
     
     <div id="standardControls">
@@ -130,32 +129,12 @@
     <div id="bluefyControls" style="display:none; margin-top: 15px; padding-top: 15px; border-top: 2px solid #007cba;">
       <div style="margin-bottom: 15px; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
         <strong>⚠️ Bluefy Detected:</strong> This browser has limited print support.<br>
-        <strong>🚀 Solution:</strong> Open this receipt in Safari or Chrome for full print functionality.
+        <strong>🚀 Solution:</strong> Open this receipt in Chrome for full print functionality.
       </div>
-      <div style="margin-bottom: 10px; font-weight: bold; color: #007cba;">Choose your preferred browser:</div>
-      <button id="openSafariBtn" class="btn btn-success">🌐 Open in Safari</button>
       <button id="openChromeBtn" class="btn btn-success">🌐 Open in Chrome</button>
-      <button id="copyUrlBtn" class="btn btn-secondary">📋 Copy Page URL</button>
-      <button id="qrInstructionsBtn" class="btn btn-secondary">📱 More Options</button>
     </div>
     
     <div id="printStatus"></div>
-    
-    <div class="instructions" id="printInstructions">
-      <strong>How to Print:</strong><br>
-      • <strong>Print Button:</strong> Click "Print Receipt" button above<br>
-      • <strong>Keyboard shortcut:</strong> Press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac)<br>
-      • <strong>Browser menu:</strong> File → Print<br>
-      • <strong>Mobile tip:</strong> Print functionality works best in landscape mode
-    </div>
-    
-    <div class="instructions" id="bluefyInstructions" style="display:none;">
-      <strong>Bluefy Users - How to Print:</strong><br>
-      1. <strong>Choose browser:</strong> Click "Open in Safari" or "Open in Chrome" above<br>
-      2. <strong>Confirm switch:</strong> Follow the prompt to switch browsers<br>
-      3. <strong>Print normally:</strong> Once in Safari/Chrome, use Ctrl+P or the print button<br>
-      4. <strong>Alternative:</strong> Copy page URL and manually paste in your preferred browser
-    </div>
     
     <details>
       <summary>🔧 Debug Information</summary>
@@ -214,31 +193,9 @@ function detectBrowserCapabilities() {
   log(`User Agent: ${userAgent}`, 'info');
   log(`Print API available: ${typeof window.print === 'function'}`, 'info');
   
-  // Auto-copy URL for Bluefy users
-  if (isBluefy) {
-    setTimeout(() => {
-      copyCurrentURL(true);
-    }, 1000);
-  }
-  
-  // Update browser info display
+  // Hide the browser info box completely
   if (browserInfo) {
-    let infoHtml = `<strong>Browser:</strong> ${browserName}`;
-    
-    if (isBluefy) {
-      infoHtml += `
-        <br><strong>📱 Specialized Browser:</strong> Bluefy Web BLE Browser detected
-        <br><strong>📋 Status:</strong> URL auto-copied to clipboard for easy sharing
-        <br><strong>🎯 Next Step:</strong> Use the browser switching buttons below to open in Safari or Chrome
-      `;
-    } else {
-      infoHtml += `
-        <br><strong>✅ Print Support:</strong> Full printing capabilities available
-        <br><strong>🎯 Ready to Print:</strong> Use the print button or Ctrl+P (Cmd+P on Mac)
-      `;
-    }
-    
-    browserInfo.innerHTML = infoHtml;
+    browserInfo.style.display = 'none';
   }
   
   return {
@@ -275,80 +232,6 @@ function printReceipt() {
   }
 }
 
-// Copy current URL to clipboard
-function copyCurrentURL(silent = false) {
-  const currentURL = window.location.href;
-  
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(currentURL).then(() => {
-        log('URL copied using Clipboard API', 'success');
-        if (!silent) {
-          showTemporaryMessage('✅ Page URL copied to clipboard!');
-        }
-      }).catch(err => {
-        log(`Clipboard API failed: ${err.message}`, 'error');
-        fallbackCopyURL(currentURL, silent);
-      });
-    } else {
-      fallbackCopyURL(currentURL, silent);
-    }
-  } catch (error) {
-    log(`URL copy failed: ${error.message}`, 'error');
-    fallbackCopyURL(currentURL, silent);
-  }
-}
-
-// Fallback URL copy method
-function fallbackCopyURL(url, silent) {
-  const textArea = document.createElement('textarea');
-  textArea.value = url;
-  textArea.style.position = 'fixed';
-  textArea.style.left = '-999999px';
-  textArea.style.top = '-999999px';
-  document.body.appendChild(textArea);
-  textArea.focus();
-  textArea.select();
-  
-  try {
-    const successful = document.execCommand('copy');
-    if (successful) {
-      log('Fallback URL copy successful', 'success');
-      if (!silent) {
-        showTemporaryMessage('✅ Page URL copied to clipboard!');
-      }
-    } else {
-      throw new Error('execCommand failed');
-    }
-  } catch (err) {
-    log(`Fallback URL copy failed: ${err.message}`, 'error');
-    if (!silent) {
-      showTemporaryMessage('❌ URL copy failed. Please copy the address bar manually.');
-    }
-  } finally {
-    document.body.removeChild(textArea);
-  }
-}
-
-// Open current page in Safari
-function openInSafari() {
-  const currentURL = window.location.href;
-  
-  try {
-    log('Attempting to provide Safari instructions', 'info');
-    
-    // Since Bluefy captures window.open(), just copy URL and provide clear instructions
-    copyCurrentURL(false);
-    showTemporaryMessage('📋 URL copied! Please open Safari, tap the address bar, paste, and tap Go.');
-    
-    log('Safari instructions provided with copied URL', 'success');
-    
-  } catch (error) {
-    log(`Safari process failed: ${error.message}`, 'error');
-    showTemporaryMessage('❌ Please manually copy the URL from the address bar and paste it in Safari.');
-  }
-}
-
 // Open current page in Chrome
 function openInChrome() {
   const currentURL = window.location.href;
@@ -356,7 +239,7 @@ function openInChrome() {
   try {
     log('Attempting to open in Chrome', 'info');
     
-    // Try Chrome URL scheme for iOS - direct navigation method
+    // Try Chrome URL scheme for iOS
     let chromeURL;
     if (currentURL.startsWith('https://')) {
       chromeURL = currentURL.replace('https://', 'googlechromes://');
@@ -368,22 +251,21 @@ function openInChrome() {
     
     log(`Chrome URL scheme: ${chromeURL}`, 'info');
     
-    // Use direct navigation to avoid Bluefy capturing window.open()
-    window.location.href = chromeURL;
+    // Create a temporary link with Chrome URL scheme and click it
+    const link = document.createElement('a');
+    link.href = chromeURL;
+    link.style.display = 'none';
     
-    log('Chrome URL scheme navigation attempted', 'success');
-    showTemporaryMessage('🌐 Switching to Chrome app... If Chrome doesn\'t open, URL will be copied as backup.');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
     
-    // Backup: Copy URL after a delay in case Chrome doesn't open
-    setTimeout(() => {
-      copyCurrentURL(true);
-      showTemporaryMessage('📋 URL copied as backup. Open Chrome manually and paste if needed.');
-    }, 3000);
+    log('Chrome URL scheme link clicked', 'success');
+    showTemporaryMessage('🌐 Attempting to switch to Chrome app...');
     
   } catch (error) {
     log(`Open in Chrome failed: ${error.message}`, 'error');
-    copyCurrentURL(false);
-    showTemporaryMessage('❌ Chrome switch failed. URL copied to clipboard - please paste it in Chrome manually.');
+    showTemporaryMessage('❌ Chrome switch failed. Please manually open Chrome and navigate to this page.');
   }
 }
 
@@ -410,74 +292,6 @@ function generateQRInstructions() {
   }
   
   log('QR instructions displayed', 'info');
-}
-
-// Copy receipt content to clipboard
-function copyReceipt() {
-  const receiptContent = document.getElementById('receipt');
-  const textContent = receiptContent.innerText || receiptContent.textContent;
-  
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(textContent).then(() => {
-        log('Receipt copied to clipboard', 'success');
-        showTemporaryMessage('✅ Receipt copied to clipboard!');
-      }).catch(err => {
-        log(`Clipboard API failed: ${err.message}`, 'error');
-        fallbackCopy(textContent);
-      });
-    } else {
-      fallbackCopy(textContent);
-    }
-  } catch (error) {
-    log(`Copy failed: ${error.message}`, 'error');
-    fallbackCopy(textContent);
-  }
-}
-
-// Fallback copy method
-function fallbackCopy(text) {
-  const textArea = document.createElement('textarea');
-  textArea.value = text;
-  textArea.style.position = 'fixed';
-  textArea.style.left = '-999999px';
-  textArea.style.top = '-999999px';
-  document.body.appendChild(textArea);
-  textArea.focus();
-  textArea.select();
-  
-  try {
-    const successful = document.execCommand('copy');
-    if (successful) {
-      log('Fallback copy successful', 'success');
-      showTemporaryMessage('✅ Receipt copied to clipboard!');
-    } else {
-      throw new Error('execCommand failed');
-    }
-  } catch (err) {
-    log(`Fallback copy failed: ${err.message}`, 'error');
-    showTemporaryMessage('❌ Copy failed. Please select and copy the receipt manually.');
-  } finally {
-    document.body.removeChild(textArea);
-  }
-}
-
-// Share receipt (if supported)
-function shareReceipt() {
-  const receiptContent = document.getElementById('receipt');
-  const textContent = receiptContent.innerText || receiptContent.textContent;
-  
-  if (navigator.share) {
-    navigator.share({
-      title: 'Receipt',
-      text: textContent,
-      url: window.location.href
-    }).then(() => {
-      log('Receipt shared successfully', 'success');
-    }).catch(err => {
-      log(`Share failed: ${err.message}`, 'error');
-    });
-  }
 }
 
 // Show temporary status message
@@ -580,33 +394,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // In Bluefy: Hide standard controls, show browser switching
     document.getElementById('standardControls').style.display = 'none';
     document.getElementById('bluefyControls').style.display = 'block';
-    document.getElementById('printInstructions').style.display = 'none';
-    document.getElementById('bluefyInstructions').style.display = 'block';
     log('Bluefy detected: Showing browser switching controls, hiding print button', 'info');
   } else {
     // In Safari/Chrome/other: Show standard controls, hide browser switching
     document.getElementById('standardControls').style.display = 'block';
     document.getElementById('bluefyControls').style.display = 'none';
-    document.getElementById('printInstructions').style.display = 'block';
-    document.getElementById('bluefyInstructions').style.display = 'none';
     log(`Standard browser detected (${browserCaps.browserName}): Showing print controls`, 'info');
-  }
-  
-  // Show share button if supported (only in standard controls)
-  if (navigator.share && !browserCaps.isBluefy) {
-    document.getElementById('shareBtn').style.display = 'inline-block';
   }
   
   // Button event listeners
   document.getElementById('printBtn').addEventListener('click', printReceipt);
-  document.getElementById('copyBtn').addEventListener('click', copyReceipt);
-  document.getElementById('shareBtn').addEventListener('click', shareReceipt);
   
   // Bluefy-specific button listeners
-  document.getElementById('copyUrlBtn').addEventListener('click', () => copyCurrentURL(false));
-  document.getElementById('openSafariBtn').addEventListener('click', openInSafari);
   document.getElementById('openChromeBtn').addEventListener('click', openInChrome);
-  document.getElementById('qrInstructionsBtn').addEventListener('click', generateQRInstructions);
   
   // Debug toggle
   document.getElementById('toggleDebug').addEventListener('click', function() {
