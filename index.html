@@ -1,44 +1,82 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Receipt Loader</title>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
-html, body {
-  margin: 0;
-  padding: 0;
-}
-#target {
-  width: 100%;
-  height: auto;
-  display: block;
-}
+  body { margin: 0; padding: 20px; font-family: Arial; }
+  .receipt-container { max-width: 600px; margin: auto; background: #fff; border: 1px solid #ddd; padding: 20px; }
 </style>
 </head>
 <body>
-<div id="target"></div>
+
+<div class="receipt-container" id="receipt">
+  Loading receipt...
+</div>
+
+<div style="text-align:center; margin-top:20px;">
+  <button id="generateBtn">Generate Image & Print</button>
+  <div id="output" style="margin-top:20px;"></div>
+</div>
 
 <script>
-function decodeBase64(base64) {
-  try {
-    return decodeURIComponent(escape(atob(base64)));
-  } catch (e) {
-    return atob(base64);
-  }
+// Helper: get URL parameters
+function getParams() {
+    const search = new URLSearchParams(window.location.search);
+    return {
+        html: search.get('html') || '',      // base64-encoded HTML
+        print: search.get('print') === 'true'
+    };
 }
 
-const params = new URLSearchParams(window.location.search);
-const htmlParam = params.get("html");
-const autoPrint = params.get("print") === "true";
-
-if (htmlParam) {
-  const decoded = decodeBase64(htmlParam);
-  document.getElementById("target").innerHTML = decoded;
+// Decode base64 HTML
+function decodeBase64HTML(encoded) {
+    try {
+        return decodeURIComponent(escape(atob(encoded)));
+    } catch(e) {
+        return '<p>Error decoding HTML</p>';
+    }
 }
 
-if (autoPrint) {
-  setTimeout(() => window.print(), 300);
+// Inject receipt HTML
+function renderReceipt() {
+    const params = getParams();
+    const container = document.getElementById('receipt');
+    
+    if (params.html) {
+        container.innerHTML = decodeBase64HTML(params.html);
+
+        if (params.print) {
+            html2canvas(container).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write('<img src="' + imgData + '" style="width:100%"/>');
+                printWindow.document.close();
+                printWindow.focus();
+                printWindow.print();
+            });
+        }
+    } else {
+        container.innerHTML = '<p>No receipt provided</p>';
+    }
 }
+
+renderReceipt();
+
+// Manual button
+document.getElementById('generateBtn').addEventListener('click', () => {
+    const container = document.getElementById('receipt');
+    html2canvas(container).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const imgEl = document.createElement('img');
+        imgEl.src = imgData;
+        imgEl.style.maxWidth = '100%';
+        const output = document.getElementById('output');
+        output.innerHTML = '';
+        output.appendChild(imgEl);
+    });
+});
 </script>
 
 </body>
