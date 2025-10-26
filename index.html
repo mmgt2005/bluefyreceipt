@@ -237,7 +237,7 @@ function openInChrome() {
   const currentURL = window.location.href;
   
   try {
-    log('Attempting to open in Chrome', 'info');
+    log('Attempting to open in Chrome with multiple unconventional methods', 'info');
     
     // Try Chrome URL scheme for iOS
     let chromeURL;
@@ -250,16 +250,68 @@ function openInChrome() {
     }
     
     log(`Chrome URL scheme: ${chromeURL}`, 'info');
+    showTemporaryMessage('🌐 Trying 6 different methods to switch to Chrome...');
     
-    // Use direct navigation to trigger Chrome app
-    window.location.href = chromeURL;
+    // Method 1: Try invisible iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = chromeURL;
+    document.body.appendChild(iframe);
+    setTimeout(() => {
+      try { document.body.removeChild(iframe); } catch(e) {}
+    }, 1000);
     
-    log('Chrome URL scheme navigation attempted', 'success');
-    showTemporaryMessage('🌐 Attempting to switch to Chrome app...');
+    // Method 2: Try image src (sometimes triggers navigation)
+    setTimeout(() => {
+      const img = document.createElement('img');
+      img.style.display = 'none';
+      img.src = chromeURL;
+      document.body.appendChild(img);
+      setTimeout(() => {
+        try { document.body.removeChild(img); } catch(e) {}
+      }, 1000);
+    }, 200);
+    
+    // Method 3: Try object embed
+    setTimeout(() => {
+      const obj = document.createElement('object');
+      obj.data = chromeURL;
+      obj.style.display = 'none';
+      document.body.appendChild(obj);
+      setTimeout(() => {
+        try { document.body.removeChild(obj); } catch(e) {}
+      }, 1000);
+    }, 400);
+    
+    // Method 4: Try creating a blob URL with redirect
+    setTimeout(() => {
+      const redirectHTML = `<script>window.location.href='${chromeURL}';</script>`;
+      const blob = new Blob([redirectHTML], {type: 'text/html'});
+      const blobURL = URL.createObjectURL(blob);
+      const blobWindow = window.open(blobURL, '_blank');
+      setTimeout(() => {
+        try { 
+          blobWindow.close(); 
+          URL.revokeObjectURL(blobURL);
+        } catch(e) {}
+      }, 2000);
+    }, 600);
+    
+    // Method 5: Try direct location assignment after delay
+    setTimeout(() => {
+      window.location.assign(chromeURL);
+    }, 800);
+    
+    // Method 6: Try location replace as last resort
+    setTimeout(() => {
+      window.location.replace(chromeURL);
+    }, 1000);
+    
+    log('All 6 Chrome opening methods attempted', 'success');
     
   } catch (error) {
     log(`Open in Chrome failed: ${error.message}`, 'error');
-    showTemporaryMessage('❌ Chrome switch failed. Please manually open Chrome and navigate to this page.');
+    showTemporaryMessage('❌ All 6 methods failed. Bluefy is aggressively blocking Chrome switching.');
   }
 }
 
