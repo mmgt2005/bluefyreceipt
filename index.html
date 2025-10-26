@@ -120,28 +120,41 @@
     <h2>Receipt Printer</h2>
     <div id="browserDetection" class="browser-info"></div>
     
-    <button id="printBtn" class="btn btn-primary" disabled>🖨️ Print Receipt</button>
-    <button id="copyBtn" class="btn btn-secondary">📋 Copy Receipt</button>
-    <button id="shareBtn" class="btn btn-success" style="display:none;">📤 Share Receipt</button>
+    <div id="standardControls">
+      <button id="printBtn" class="btn btn-primary" disabled>🖨️ Print Receipt</button>
+      <button id="copyBtn" class="btn btn-secondary">📋 Copy Receipt</button>
+      <button id="shareBtn" class="btn btn-success" style="display:none;">📤 Share Receipt</button>
+    </div>
     
-    <!-- Bluefy-specific browser switching controls -->
-    <div id="bluefyControls" style="display:none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
-      <div style="margin-bottom: 10px; font-weight: bold; color: #007cba;">🚀 Open in Full-Featured Browser:</div>
-      <button id="copyUrlBtn" class="btn btn-secondary">📋 Copy Page URL</button>
+    <!-- Bluefy-specific browser switching controls (only shown in Bluefy) -->
+    <div id="bluefyControls" style="display:none; margin-top: 15px; padding-top: 15px; border-top: 2px solid #007cba;">
+      <div style="margin-bottom: 15px; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
+        <strong>⚠️ Bluefy Detected:</strong> This browser has limited print support.<br>
+        <strong>🚀 Solution:</strong> Open this receipt in Safari or Chrome for full print functionality.
+      </div>
+      <div style="margin-bottom: 10px; font-weight: bold; color: #007cba;">Choose your preferred browser:</div>
       <button id="openSafariBtn" class="btn btn-success">🌐 Open in Safari</button>
       <button id="openChromeBtn" class="btn btn-success">🌐 Open in Chrome</button>
-      <button id="qrInstructionsBtn" class="btn btn-secondary">📱 Mobile Instructions</button>
+      <button id="copyUrlBtn" class="btn btn-secondary">📋 Copy Page URL</button>
+      <button id="qrInstructionsBtn" class="btn btn-secondary">📱 More Options</button>
     </div>
     
     <div id="printStatus"></div>
     
-    <div class="instructions">
+    <div class="instructions" id="printInstructions">
       <strong>How to Print:</strong><br>
-      • <strong>Standard browsers:</strong> Click "Print Receipt" button above<br>
+      • <strong>Print Button:</strong> Click "Print Receipt" button above<br>
       • <strong>Keyboard shortcut:</strong> Press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac)<br>
       • <strong>Browser menu:</strong> File → Print<br>
-      • <strong>Bluefy users:</strong> Use "Open in Safari/Chrome" buttons above for full print support<br>
-      • <strong>Mobile:</strong> Use "Mobile Instructions" for QR code and URL sharing
+      • <strong>Mobile tip:</strong> Print functionality works best in landscape mode
+    </div>
+    
+    <div class="instructions" id="bluefyInstructions" style="display:none;">
+      <strong>Bluefy Users - How to Print:</strong><br>
+      1. <strong>Choose browser:</strong> Click "Open in Safari" or "Open in Chrome" above<br>
+      2. <strong>Confirm switch:</strong> Follow the prompt to switch browsers<br>
+      3. <strong>Print normally:</strong> Once in Safari/Chrome, use Ctrl+P or the print button<br>
+      4. <strong>Alternative:</strong> Copy page URL and manually paste in your preferred browser
     </div>
     
     <details>
@@ -214,9 +227,14 @@ function detectBrowserCapabilities() {
     
     if (isBluefy) {
       infoHtml += `
-        <br><strong>⚠️ Specialized Browser Detected:</strong> Bluefy may have limited print support.
-        <br><strong>📋 URL Auto-Copied:</strong> Current page link copied to clipboard for easy sharing.
-        <br><strong>🚀 Quick Solution:</strong> Use buttons below to open this receipt in Safari or Chrome for full print support.
+        <br><strong>📱 Specialized Browser:</strong> Bluefy Web BLE Browser detected
+        <br><strong>📋 Status:</strong> URL auto-copied to clipboard for easy sharing
+        <br><strong>🎯 Next Step:</strong> Use the browser switching buttons below to open in Safari or Chrome
+      `;
+    } else {
+      infoHtml += `
+        <br><strong>✅ Print Support:</strong> Full print functionality available
+        <br><strong>🖨️ Ready:</strong> You can print this receipt directly from this browser
       `;
     }
     
@@ -360,27 +378,51 @@ function openInSafari() {
   const currentURL = window.location.href;
   
   try {
-    // For iOS, there's no direct Safari URL scheme, but we can try to open the URL
-    // which should default to Safari if it's the default browser
+    // For iOS Safari, we need to use a different approach
     log('Attempting to open in Safari', 'info');
     
-    // Create a temporary link and click it to open in new window/tab
-    const link = document.createElement('a');
-    link.href = currentURL;
-    link.target = '_blank';
-    link.rel = 'noopener';
+    // Method 1: Try Safari-specific URL scheme first
+    // iOS Safari doesn't have a custom URL scheme like Chrome, but we can try a few approaches
     
-    // Try to trigger the link
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Create a link that should prompt to open in Safari
+    const safariURL = currentURL; // Keep original URL
     
-    log('Open in Safari attempted', 'success');
-    showTemporaryMessage('🌐 Opening in new tab/window... If this doesn\'t work, manually paste the copied URL in Safari.');
+    // Try to create a dialog that prompts app switching
+    const userConfirmed = confirm('Open this page in Safari for full print functionality?\n\nClick OK to open in Safari, or Cancel to copy the URL manually.');
+    
+    if (userConfirmed) {
+      // Method 1: Try window.open with Safari-friendly parameters
+      const safariWindow = window.open(safariURL, '_blank', 'location=yes,toolbar=yes,menubar=yes');
+      
+      if (safariWindow) {
+        log('Safari window opened successfully', 'success');
+        showTemporaryMessage('🌐 Opening in Safari... If it opens in Bluefy instead, try copying the URL manually.');
+        
+        // Close the new window after a delay and inform user
+        setTimeout(() => {
+          try {
+            safariWindow.close();
+          } catch (e) {
+            // Window might already be closed or security restrictions
+          }
+          showTemporaryMessage('💡 If the page opened in Bluefy instead of Safari, please manually copy the URL and paste it in Safari.');
+        }, 3000);
+      } else {
+        throw new Error('Window opening blocked');
+      }
+    } else {
+      // User chose manual method
+      copyCurrentURL(false);
+      showTemporaryMessage('📋 URL copied! Please open Safari and paste the URL in the address bar.');
+    }
+    
+    log('Safari opening attempt completed', 'success');
     
   } catch (error) {
-    log(`Open in Safari failed: ${error.message}`, 'error');
-    showTemporaryMessage('❌ Auto-open failed. Please manually paste the copied URL in Safari.');
+    log(`Safari opening failed: ${error.message}`, 'error');
+    // Fallback: copy URL and show instructions
+    copyCurrentURL(false);
+    showTemporaryMessage('❌ Auto-open failed. URL copied to clipboard - please paste it in Safari manually.');
   }
 }
 
@@ -413,22 +455,17 @@ function openInChrome() {
     document.body.removeChild(link);
     
     log('Chrome URL scheme attempted', 'success');
-    showTemporaryMessage('🌐 Opening in Chrome... If Chrome doesn\'t open, manually paste the copied URL in Chrome.');
+    showTemporaryMessage('🌐 Opening in Chrome... You should see a dialog to "Open in Chrome" app.');
     
-    // Fallback: also try normal link opening
+    // Provide fallback instructions without opening another window
     setTimeout(() => {
-      const fallbackLink = document.createElement('a');
-      fallbackLink.href = currentURL;
-      fallbackLink.target = '_blank';
-      fallbackLink.rel = 'noopener';
-      document.body.appendChild(fallbackLink);
-      fallbackLink.click();
-      document.body.removeChild(fallbackLink);
-    }, 1000);
+      showTemporaryMessage('💡 If Chrome didn\'t open, you can manually copy the URL and paste it in Chrome.');
+    }, 3000);
     
   } catch (error) {
     log(`Open in Chrome failed: ${error.message}`, 'error');
-    showTemporaryMessage('❌ Auto-open failed. Please manually paste the copied URL in Chrome.');
+    copyCurrentURL(false);
+    showTemporaryMessage('❌ Auto-open failed. URL copied to clipboard - please paste it in Chrome manually.');
   }
 }
 
@@ -620,13 +657,25 @@ document.addEventListener('DOMContentLoaded', function() {
   // Detect browser capabilities
   const browserCaps = detectBrowserCapabilities();
   
-  // Show Bluefy-specific controls if in Bluefy browser
+  // Conditionally show controls based on browser
   if (browserCaps.isBluefy) {
+    // In Bluefy: Hide standard controls, show browser switching
+    document.getElementById('standardControls').style.display = 'none';
     document.getElementById('bluefyControls').style.display = 'block';
+    document.getElementById('printInstructions').style.display = 'none';
+    document.getElementById('bluefyInstructions').style.display = 'block';
+    log('Bluefy detected: Showing browser switching controls, hiding print button', 'info');
+  } else {
+    // In Safari/Chrome/other: Show standard controls, hide browser switching
+    document.getElementById('standardControls').style.display = 'block';
+    document.getElementById('bluefyControls').style.display = 'none';
+    document.getElementById('printInstructions').style.display = 'block';
+    document.getElementById('bluefyInstructions').style.display = 'none';
+    log(`Standard browser detected (${browserCaps.browserName}): Showing print controls`, 'info');
   }
   
-  // Show share button if supported
-  if (navigator.share) {
+  // Show share button if supported (only in standard controls)
+  if (navigator.share && !browserCaps.isBluefy) {
     document.getElementById('shareBtn').style.display = 'inline-block';
   }
   
