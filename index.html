@@ -3,81 +3,202 @@
 <head>
 <meta charset="UTF-8">
 <title>Receipt Loader</title>
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
   body { margin: 0; padding: 20px; font-family: Arial; }
   .receipt-container { max-width: 600px; margin: auto; background: #fff; border: 1px solid #ddd; padding: 20px; }
+  .loading { text-align: center; color: #666; }
+  #printBtn { display: block; margin: 20px auto; padding: 10px 20px; background: #007cba; color: white; border: none; border-radius: 4px; cursor: pointer; }
+  #printBtn:hover { background: #005a87; }
+  #printBtn:disabled { background: #ccc; cursor: not-allowed; }
 </style>
 </head>
 <body>
-
 <div class="receipt-container" id="receipt">
-  Loading receipt...
+  <div class="loading">Loading receipt...</div>
 </div>
-
-<div style="text-align:center; margin-top:20px;">
-  <button id="generateBtn">Generate Image & Print</button>
-  <div id="output" style="margin-top:20px;"></div>
-</div>
+<button id="printBtn" disabled>Print Receipt</button>
 
 <script>
 // Helper: get URL parameters
 function getParams() {
     const search = new URLSearchParams(window.location.search);
     return {
-        html: search.get('html') || '',      // base64-encoded HTML
+        data: search.get('data') || '',   // base64 compressed HTML
         print: search.get('print') === 'true'
     };
 }
 
-// Decode base64 HTML
-function decodeBase64HTML(encoded) {
+// Decode and decompress base64 HTML
+function decodeCompressedHTML(base64) {
     try {
-        return decodeURIComponent(escape(atob(encoded)));
+        const compressed = atob(base64);
+        return pako.inflate(compressed, { to: 'string' });
     } catch(e) {
-        return '<p>Error decoding HTML</p>';
+        console.error('Error decoding receipt:', e);
+        return '<p style="color: red;">Error decoding receipt data</p>';
     }
 }
 
-// Inject receipt HTML
+// Render receipt
 function renderReceipt() {
     const params = getParams();
     const container = document.getElementById('receipt');
+    const printBtn = document.getElementById('printBtn');
     
-    if (params.html) {
-        container.innerHTML = decodeBase64HTML(params.html);
-
-        if (params.print) {
-            html2canvas(container).then(canvas => {
-                const imgData = canvas.toDataURL('image/png');
-                const printWindow = window.open('', '_blank');
-                printWindow.document.write('<img src="' + imgData + '" style="width:100%"/>');
-                printWindow.document.close();
-                printWindow.focus();
-                printWindow.print();
-            });
+    if (params.data) {
+        try {
+            const decodedHTML = decodeCompressedHTML(params.data);
+            container.innerHTML = decodedHTML;
+            printBtn.disabled = false;
+            
+            // Auto-print if print parameter is true
+            if (params.print) {
+                // Wait a bit longer to ensure content is fully rendered
+                setTimeout(() => {
+                    console.log('Auto-printing receipt...');
+                    printReceipt();
+                }, 1000);
+            }
+        } catch(e) {
+            container.innerHTML = '<p style="color: red;">Error rendering receipt</p>';
+            console.error('Error rendering receipt:', e);
         }
     } else {
-        container.innerHTML = '<p>No receipt provided</p>';
+        container.innerHTML = '<p>No receipt data provided. Add ?data=yourBase64Data to the URL.</p>';
     }
 }
 
-renderReceipt();
-
-// Manual button
-document.getElementById('generateBtn').addEventListener('click', () => {
+// Enhanced print receipt function with better print window handling
+function printReceipt() {
     const container = document.getElementById('receipt');
-    html2canvas(container).then(canvas => {
-        const imgData = canvas.toDataURL('image/png');
-        const imgEl = document.createElement('img');
-        imgEl.src = imgData;
-        imgEl.style.maxWidth = '100%';
-        const output = document.getElementById('output');
-        output.innerHTML = '';
-        output.appendChild(imgEl);
+    const printBtn = document.getElementById('printBtn');
+    
+    // Disable button during processing
+    printBtn.disabled = true;
+    printBtn.textContent = 'Preparing to print...';
+    
+    // Configure html2canvas for better print quality
+    const canvasOptions = {
+        useCORS: true,
+        scale: 2, // Higher resolution for better print quality
+        backgroundColor: '#ffffff',
+        width: container.offsetWidth,
+        height: container.offsetHeight,
+        scrollX: 0,
+        scrollY: 0
+    };
+    
+    html2canvas(container, canvasOptions).then(canvas => {
+        const imgData = canvas.toDataURL('image/png', 1.0);
+        
+        // Create a properly formatted print window
+        const printWindow = window.open('', '_blank', 'width=800,height=600');
+        
+        if (printWindow) {
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Print Receipt</title>
+                    <style>
+                        @media print {
+                            body { margin: 0; padding: 0; }
+                            img { max-width: 100%; height: auto; page-break-inside: avoid; }
+                            @page { margin: 0.5in; }
+                        }
+                        body { 
+                            margin: 0; 
+                            padding: 20px; 
+                            display: flex; 
+                            justify-content: center; 
+                            align-items: flex-start;
+                            background: #f5f5f5;
+                        }
+                        img { 
+                            max-width: 100%; 
+                            height: auto; 
+                            border: 1px solid #ddd;
+                            background: white;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        }
+                        .no-print {
+                            margin-top: 20px;
+                            text-align: center;
+                        }
+                        .no-print button {
+                            padding: 10px 20px;
+                            margin: 0 10px;
+                            border: none;
+                            border-radius: 4px;
+                            cursor: pointer;
+                        }
+                        .print-btn { background: #007cba; color: white; }
+                        .close-btn { background: #666; color: white; }
+                        @media print { .no-print { display: none; } }
+                    </style>
+                </head>
+                <body>
+                    <div>
+                        <img src="${imgData}" alt="Receipt" />
+                        <div class="no-print">
+                            <button class="print-btn" onclick="window.print()">Print</button>
+                            <button class="close-btn" onclick="window.close()">Close</button>
+                        </div>
+                    </div>
+                </body>
+                </html>
+            `);
+            
+            printWindow.document.close();
+            
+            // Focus the print window and trigger print dialog
+            printWindow.focus();
+            
+            // Wait for image to load, then print
+            const img = printWindow.document.querySelector('img');
+            img.onload = function() {
+                setTimeout(() => {
+                    printWindow.print();
+                }, 500);
+            };
+            
+            // Handle print window events
+            printWindow.onbeforeunload = function() {
+                // Re-enable the print button when print window closes
+                printBtn.disabled = false;
+                printBtn.textContent = 'Print Receipt';
+            };
+            
+        } else {
+            alert('Unable to open print window. Please check your popup blocker settings.');
+            printBtn.disabled = false;
+            printBtn.textContent = 'Print Receipt';
+        }
+        
+    }).catch(error => {
+        console.error('Error creating canvas:', error);
+        alert('Error preparing receipt for printing. Please try again.');
+        printBtn.disabled = false;
+        printBtn.textContent = 'Print Receipt';
     });
+}
+
+// Button to manually print
+document.getElementById('printBtn').addEventListener('click', function() {
+    printReceipt();
+});
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    renderReceipt();
+});
+
+// Also render on page load (backup)
+window.addEventListener('load', function() {
+    renderReceipt();
 });
 </script>
-
 </body>
 </html>
