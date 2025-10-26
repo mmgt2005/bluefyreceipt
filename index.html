@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <title>Receipt Loader</title>
 <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
   body { margin: 0; padding: 20px; font-family: Arial; }
   .receipt-container { max-width: 600px; margin: auto; background: #fff; border: 1px solid #ddd; padding: 20px; }
@@ -12,6 +11,20 @@
   #printBtn { display: block; margin: 20px auto; padding: 10px 20px; background: #007cba; color: white; border: none; border-radius: 4px; cursor: pointer; }
   #printBtn:hover { background: #005a87; }
   #printBtn:disabled { background: #ccc; cursor: not-allowed; }
+  
+  /* Print-specific styles */
+  @media print {
+    body { margin: 0; padding: 0; }
+    #printBtn { display: none; }
+    .receipt-container { 
+      max-width: none; 
+      margin: 0; 
+      border: none; 
+      padding: 20px;
+      box-shadow: none;
+    }
+    @page { margin: 0.5in; }
+  }
 </style>
 </head>
 <body>
@@ -55,11 +68,11 @@ function renderReceipt() {
             
             // Auto-print if print parameter is true
             if (params.print) {
-                // Wait a bit longer to ensure content is fully rendered
+                // Wait a moment to ensure content is fully rendered
                 setTimeout(() => {
                     console.log('Auto-printing receipt...');
                     printReceipt();
-                }, 1000);
+                }, 500);
             }
         } catch(e) {
             container.innerHTML = '<p style="color: red;">Error rendering receipt</p>';
@@ -70,125 +83,14 @@ function renderReceipt() {
     }
 }
 
-// Enhanced print receipt function with better print window handling
+// Simple print function using native browser print dialog
 function printReceipt() {
-    const container = document.getElementById('receipt');
-    const printBtn = document.getElementById('printBtn');
-    
-    // Disable button during processing
-    printBtn.disabled = true;
-    printBtn.textContent = 'Preparing to print...';
-    
-    // Configure html2canvas for better print quality
-    const canvasOptions = {
-        useCORS: true,
-        scale: 2, // Higher resolution for better print quality
-        backgroundColor: '#ffffff',
-        width: container.offsetWidth,
-        height: container.offsetHeight,
-        scrollX: 0,
-        scrollY: 0
-    };
-    
-    html2canvas(container, canvasOptions).then(canvas => {
-        const imgData = canvas.toDataURL('image/png', 1.0);
-        
-        // Create a properly formatted print window
-        const printWindow = window.open('', '_blank', 'width=800,height=600');
-        
-        if (printWindow) {
-            printWindow.document.write(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Print Receipt</title>
-                    <style>
-                        @media print {
-                            body { margin: 0; padding: 0; }
-                            img { max-width: 100%; height: auto; page-break-inside: avoid; }
-                            @page { margin: 0.5in; }
-                        }
-                        body { 
-                            margin: 0; 
-                            padding: 20px; 
-                            display: flex; 
-                            justify-content: center; 
-                            align-items: flex-start;
-                            background: #f5f5f5;
-                        }
-                        img { 
-                            max-width: 100%; 
-                            height: auto; 
-                            border: 1px solid #ddd;
-                            background: white;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-                        }
-                        .no-print {
-                            margin-top: 20px;
-                            text-align: center;
-                        }
-                        .no-print button {
-                            padding: 10px 20px;
-                            margin: 0 10px;
-                            border: none;
-                            border-radius: 4px;
-                            cursor: pointer;
-                        }
-                        .print-btn { background: #007cba; color: white; }
-                        .close-btn { background: #666; color: white; }
-                        @media print { .no-print { display: none; } }
-                    </style>
-                </head>
-                <body>
-                    <div>
-                        <img src="${imgData}" alt="Receipt" />
-                        <div class="no-print">
-                            <button class="print-btn" onclick="window.print()">Print</button>
-                            <button class="close-btn" onclick="window.close()">Close</button>
-                        </div>
-                    </div>
-                </body>
-                </html>
-            `);
-            
-            printWindow.document.close();
-            
-            // Focus the print window and trigger print dialog
-            printWindow.focus();
-            
-            // Wait for image to load, then print
-            const img = printWindow.document.querySelector('img');
-            img.onload = function() {
-                setTimeout(() => {
-                    printWindow.print();
-                }, 500);
-            };
-            
-            // Handle print window events
-            printWindow.onbeforeunload = function() {
-                // Re-enable the print button when print window closes
-                printBtn.disabled = false;
-                printBtn.textContent = 'Print Receipt';
-            };
-            
-        } else {
-            alert('Unable to open print window. Please check your popup blocker settings.');
-            printBtn.disabled = false;
-            printBtn.textContent = 'Print Receipt';
-        }
-        
-    }).catch(error => {
-        console.error('Error creating canvas:', error);
-        alert('Error preparing receipt for printing. Please try again.');
-        printBtn.disabled = false;
-        printBtn.textContent = 'Print Receipt';
-    });
+    // Just use the browser's native print functionality
+    window.print();
 }
 
 // Button to manually print
-document.getElementById('printBtn').addEventListener('click', function() {
-    printReceipt();
-});
+document.getElementById('printBtn').addEventListener('click', printReceipt);
 
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
