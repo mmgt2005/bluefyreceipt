@@ -251,7 +251,7 @@ function openInChrome() {
     
     log(`Chrome URL scheme: ${chromeURL}`, 'info');
     
-    // Create a temporary link with Chrome URL scheme and click it
+    // Create a temporary link with Chrome URL scheme
     const link = document.createElement('a');
     link.href = chromeURL;
     link.style.display = 'none';
@@ -260,12 +260,32 @@ function openInChrome() {
     link.click();
     document.body.removeChild(link);
     
-    log('Chrome URL scheme link clicked', 'success');
-    showTemporaryMessage('🌐 Attempting to switch to Chrome app...');
+    log('Chrome URL scheme attempted', 'success');
+    showTemporaryMessage('🌐 Opening in Chrome... You should see a dialog to "Open in Chrome" app.');
+    
+    // IMPORTANT: Keep the fallback window opening - this might be what triggers the dialog
+    setTimeout(() => {
+      try {
+        const fallbackWindow = window.open(currentURL, '_blank', 'noopener,noreferrer');
+        if (fallbackWindow) {
+          log('Fallback window opened', 'success');
+          // Close the fallback window quickly since the Chrome app should open
+          setTimeout(() => {
+            try {
+              fallbackWindow.close();
+            } catch (e) {
+              // Window might be closed already
+            }
+          }, 1000);
+        }
+      } catch (fallbackError) {
+        log(`Fallback failed: ${fallbackError.message}`, 'error');
+      }
+    }, 500);
     
   } catch (error) {
     log(`Open in Chrome failed: ${error.message}`, 'error');
-    showTemporaryMessage('❌ Chrome switch failed. Please manually open Chrome and navigate to this page.');
+    showTemporaryMessage('❌ Auto-open failed. Please manually open Chrome and navigate to this page.');
   }
 }
 
