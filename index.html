@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Receipt Loader</title>
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+}
+#target {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+</style>
+</head>
+<body>
+<div id="target"></div>
+
+<script>
+function decodeBase64(base64) {
+  try {
+    return decodeURIComponent(escape(atob(base64)));
+  } catch (e) {
+    return atob(base64);
+  }
+}
+
+const params = new URLSearchParams(window.location.search);
+const htmlParam = params.get("html");
+const autoPrint = params.get("print") === "true";
+
+if (htmlParam) {
+  const decoded = decodeBase64(htmlParam);
+  document.getElementById("target").innerHTML = decoded;
+}
+
+if (autoPrint) {
+  setTimeout(() => window.print(), 300);
+}
+</script>
+
+</body>
+</html>
