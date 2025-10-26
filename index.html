@@ -2,20 +2,107 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Receipt Loader</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Receipt Loader - Enhanced</title>
 <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 <style>
-  body { margin: 0; padding: 20px; font-family: Arial; }
-  .receipt-container { max-width: 600px; margin: auto; background: #fff; border: 1px solid #ddd; padding: 20px; }
-  .loading { text-align: center; color: #666; }
-  #printBtn { display: block; margin: 20px auto; padding: 10px 20px; background: #007cba; color: white; border: none; border-radius: 4px; cursor: pointer; }
-  #printBtn:hover { background: #005a87; }
-  #printBtn:disabled { background: #ccc; cursor: not-allowed; }
+  body { margin: 0; padding: 20px; font-family: Arial, sans-serif; background: #f5f5f5; }
+  .container { max-width: 700px; margin: auto; }
+  .receipt-container { 
+    max-width: 600px; 
+    margin: auto; 
+    background: #fff; 
+    border: 1px solid #ddd; 
+    padding: 20px; 
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  .loading { text-align: center; color: #666; padding: 40px; }
+  
+  .controls {
+    background: white;
+    padding: 20px;
+    margin: 20px auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    text-align: center;
+  }
+  
+  .btn {
+    display: inline-block;
+    margin: 5px 10px;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    text-decoration: none;
+    transition: background-color 0.3s;
+  }
+  
+  .btn-primary { background: #007cba; color: white; }
+  .btn-primary:hover { background: #005a87; }
+  .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+  
+  .btn-secondary { background: #6c757d; color: white; }
+  .btn-secondary:hover { background: #545b62; }
+  
+  .btn-success { background: #28a745; color: white; }
+  .btn-success:hover { background: #218838; }
+  
+  .browser-info {
+    background: #e3f2fd;
+    border: 1px solid #2196f3;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 15px 0;
+    font-size: 13px;
+  }
+  
+  .error-info {
+    background: #ffebee;
+    border: 1px solid #f44336;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 15px 0;
+    font-size: 13px;
+  }
+  
+  .success-info {
+    background: #e8f5e8;
+    border: 1px solid #4caf50;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 15px 0;
+    font-size: 13px;
+  }
+  
+  .instructions {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    padding: 15px;
+    margin: 15px 0;
+    font-size: 13px;
+  }
+  
+  #debugLog {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 10px;
+    margin: 15px 0;
+    font-family: monospace;
+    font-size: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    display: none;
+  }
   
   /* Print-specific styles */
   @media print {
-    body { margin: 0; padding: 0; }
-    #printBtn { display: none; }
+    body { margin: 0; padding: 0; background: white; }
+    .controls, .browser-info, .error-info, .instructions, #debugLog { display: none !important; }
+    .container { max-width: none; }
     .receipt-container { 
       max-width: none; 
       margin: 0; 
@@ -28,154 +115,368 @@
 </style>
 </head>
 <body>
-<div class="receipt-container" id="receipt">
-  <div class="loading">Loading receipt...</div>
+<div class="container">
+  <div class="controls">
+    <h2>Receipt Printer</h2>
+    <div id="browserDetection" class="browser-info"></div>
+    
+    <button id="printBtn" class="btn btn-primary" disabled>🖨️ Print Receipt</button>
+    <button id="copyBtn" class="btn btn-secondary">📋 Copy Receipt</button>
+    <button id="shareBtn" class="btn btn-success" style="display:none;">📤 Share Receipt</button>
+    
+    <div id="printStatus"></div>
+    
+    <div class="instructions">
+      <strong>Alternative Print Methods:</strong><br>
+      • Press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac) to print<br>
+      • Use browser menu: File → Print<br>
+      • For Bluefy users: Try opening in Safari or Chrome for full print support
+    </div>
+    
+    <details>
+      <summary>🔧 Debug Information</summary>
+      <button id="toggleDebug" class="btn btn-secondary">Show Debug Log</button>
+      <div id="debugLog"></div>
+    </details>
+  </div>
+
+  <div class="receipt-container" id="receipt">
+    <div class="loading">Loading receipt...</div>
+  </div>
 </div>
-<button id="printBtn" disabled>Print Receipt</button>
 
 <script>
-// Helper: get URL parameters
-function getParams() {
-    const search = new URLSearchParams(window.location.search);
-    return {
-        data: search.get('data') || '',   // base64 compressed HTML
-        print: search.get('print') === 'true'
-    };
+// Enhanced logging system
+const debugLog = document.getElementById('debugLog');
+let debugVisible = false;
+
+function log(message, type = 'info') {
+  const timestamp = new Date().toLocaleTimeString();
+  const logEntry = `[${timestamp}] ${type.toUpperCase()}: ${message}`;
+  
+  console.log(logEntry);
+  
+  if (debugLog) {
+    const color = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#6c757d';
+    debugLog.innerHTML += `<div style="color: ${color}">${logEntry}</div>`;
+    debugLog.scrollTop = debugLog.scrollHeight;
+  }
 }
 
-// Decode and decompress base64 HTML (handles both compressed and plain base64)
-function decodeCompressedHTML(data) {
-    try {
-        // First, try URL decoding in case the data is URL-encoded
-        let decodedData = data;
-        try {
-            const urlDecoded = decodeURIComponent(data);
-            // If URL decoding worked and changed the string, use it
-            if (urlDecoded !== data) {
-                decodedData = urlDecoded;
-            }
-        } catch (e) {
-            // If URL decoding fails, continue with original data
-        }
-        
-        // Try base64 decoding
-        const base64Decoded = atob(decodedData);
-        
-        // Check if it's already HTML (not compressed)
-        if (base64Decoded.startsWith('<!DOCTYPE html>') || base64Decoded.startsWith('<html')) {
-            console.log('Detected uncompressed base64 HTML');
-            return base64Decoded;
-        }
-        
-        // If not HTML, try pako decompression (original format)
-        try {
-            const decompressed = pako.inflate(base64Decoded, { to: 'string' });
-            console.log('Detected compressed base64 HTML');
-            return decompressed;
-        } catch (pakoError) {
-            // If pako fails, return the base64 decoded content anyway
-            console.log('Pako decompression failed, returning base64 decoded content');
-            return base64Decoded;
-        }
-        
-    } catch(e) {
-        console.error('Error decoding receipt:', e);
-        return '<p style="color: red;">Error decoding receipt data. Please check the URL format.</p>';
+// Browser detection and capabilities
+function detectBrowserCapabilities() {
+  const userAgent = navigator.userAgent;
+  const browserInfo = document.getElementById('browserDetection');
+  let isBluefy = false;
+  let browserName = 'Unknown';
+  let printSupported = true;
+  
+  // Detect specific browsers
+  if (userAgent.includes('Bluefy')) {
+    isBluefy = true;
+    browserName = 'Bluefy Web BLE Browser';
+    printSupported = false; // Assume limited support until proven otherwise
+  } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
+    browserName = 'Safari';
+  } else if (userAgent.includes('Chrome')) {
+    browserName = 'Chrome';
+  } else if (userAgent.includes('Firefox')) {
+    browserName = 'Firefox';
+  } else if (userAgent.includes('Edge')) {
+    browserName = 'Edge';
+  }
+  
+  log(`Browser detected: ${browserName}`, 'info');
+  log(`User Agent: ${userAgent}`, 'info');
+  log(`Print API available: ${typeof window.print === 'function'}`, 'info');
+  
+  // Update browser info display
+  if (browserInfo) {
+    let infoHtml = `<strong>Browser:</strong> ${browserName}`;
+    
+    if (isBluefy) {
+      infoHtml += `
+        <br><strong>⚠️ Specialized Browser Detected:</strong> Bluefy may have limited print support.
+        <br><strong>Recommendation:</strong> For full print functionality, open this link in Safari or Chrome.
+      `;
     }
+    
+    browserInfo.innerHTML = infoHtml;
+  }
+  
+  return { isBluefy, browserName, printSupported };
+}
+
+// Enhanced print function with multiple methods and fallbacks
+function printReceipt() {
+  const printStatus = document.getElementById('printStatus');
+  const browserCaps = detectBrowserCapabilities();
+  
+  log('Print button clicked', 'info');
+  
+  // Clear previous status
+  if (printStatus) printStatus.innerHTML = '';
+  
+  // Method 1: Standard window.print()
+  try {
+    log('Attempting Method 1: Standard window.print()', 'info');
+    
+    if (typeof window.print === 'function') {
+      window.print();
+      log('window.print() called successfully', 'success');
+      
+      if (printStatus) {
+        printStatus.innerHTML = '<div class="success-info">✅ Print dialog should have opened! If not, try Ctrl+P or Cmd+P</div>';
+      }
+      return;
+    } else {
+      throw new Error('window.print is not available');
+    }
+  } catch (error) {
+    log(`Method 1 failed: ${error.message}`, 'error');
+  }
+  
+  // Method 2: Focus then print
+  try {
+    log('Attempting Method 2: Focus + print', 'info');
+    window.focus();
+    setTimeout(() => {
+      window.print();
+      log('Delayed print called', 'success');
+    }, 200);
+    return;
+  } catch (error) {
+    log(`Method 2 failed: ${error.message}`, 'error');
+  }
+  
+  // Method 3: Print event approach
+  try {
+    log('Attempting Method 3: Print event', 'info');
+    const printEvent = new Event('beforeprint');
+    window.dispatchEvent(printEvent);
+    window.print();
+    log('Print event method completed', 'success');
+    return;
+  } catch (error) {
+    log(`Method 3 failed: ${error.message}`, 'error');
+  }
+  
+  // All methods failed - show comprehensive help
+  log('All automatic print methods failed', 'error');
+  
+  if (printStatus) {
+    let helpHtml = '<div class="error-info">';
+    helpHtml += '<strong>⚠️ Automatic printing not available</strong><br>';
+    helpHtml += 'Please try these alternatives:<br>';
+    helpHtml += '• Press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac)<br>';
+    helpHtml += '• Use browser menu: File → Print<br>';
+    
+    if (browserCaps.isBluefy) {
+      helpHtml += '• <strong>Recommended:</strong> Open this page in Safari or Chrome for full print support<br>';
+      helpHtml += '• Copy the receipt text and paste into a document to print<br>';
+    }
+    
+    helpHtml += '</div>';
+    printStatus.innerHTML = helpHtml;
+  }
+}
+
+// Copy receipt content to clipboard
+function copyReceipt() {
+  const receiptContent = document.getElementById('receipt');
+  const textContent = receiptContent.innerText || receiptContent.textContent;
+  
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(textContent).then(() => {
+        log('Receipt copied to clipboard', 'success');
+        showTemporaryMessage('✅ Receipt copied to clipboard!');
+      }).catch(err => {
+        log(`Clipboard API failed: ${err.message}`, 'error');
+        fallbackCopy(textContent);
+      });
+    } else {
+      fallbackCopy(textContent);
+    }
+  } catch (error) {
+    log(`Copy failed: ${error.message}`, 'error');
+    fallbackCopy(textContent);
+  }
+}
+
+// Fallback copy method
+function fallbackCopy(text) {
+  const textArea = document.createElement('textarea');
+  textArea.value = text;
+  textArea.style.position = 'fixed';
+  textArea.style.left = '-999999px';
+  textArea.style.top = '-999999px';
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  
+  try {
+    const successful = document.execCommand('copy');
+    if (successful) {
+      log('Fallback copy successful', 'success');
+      showTemporaryMessage('✅ Receipt copied to clipboard!');
+    } else {
+      throw new Error('execCommand failed');
+    }
+  } catch (err) {
+    log(`Fallback copy failed: ${err.message}`, 'error');
+    showTemporaryMessage('❌ Copy failed. Please select and copy the receipt manually.');
+  } finally {
+    document.body.removeChild(textArea);
+  }
+}
+
+// Share receipt (if supported)
+function shareReceipt() {
+  const receiptContent = document.getElementById('receipt');
+  const textContent = receiptContent.innerText || receiptContent.textContent;
+  
+  if (navigator.share) {
+    navigator.share({
+      title: 'Receipt',
+      text: textContent,
+      url: window.location.href
+    }).then(() => {
+      log('Receipt shared successfully', 'success');
+    }).catch(err => {
+      log(`Share failed: ${err.message}`, 'error');
+    });
+  }
+}
+
+// Show temporary status message
+function showTemporaryMessage(message) {
+  const printStatus = document.getElementById('printStatus');
+  if (printStatus) {
+    printStatus.innerHTML = `<div class="success-info">${message}</div>`;
+    setTimeout(() => {
+      printStatus.innerHTML = '';
+    }, 3000);
+  }
+}
+
+// Helper: get URL parameters
+function getParams() {
+  const search = new URLSearchParams(window.location.search);
+  return {
+    data: search.get('data') || '',
+    print: search.get('print') === 'true'
+  };
+}
+
+// Enhanced decode function (same as before)
+function decodeCompressedHTML(data) {
+  try {
+    let decodedData = data;
+    try {
+      const urlDecoded = decodeURIComponent(data);
+      if (urlDecoded !== data) {
+        decodedData = urlDecoded;
+      }
+    } catch (e) {
+      // Continue with original data
+    }
+    
+    const base64Decoded = atob(decodedData);
+    
+    if (base64Decoded.startsWith('<!DOCTYPE html>') || base64Decoded.startsWith('<html')) {
+      log('Detected uncompressed base64 HTML', 'info');
+      return base64Decoded;
+    }
+    
+    try {
+      const decompressed = pako.inflate(base64Decoded, { to: 'string' });
+      log('Detected compressed base64 HTML', 'info');
+      return decompressed;
+    } catch (pakoError) {
+      log('Pako decompression failed, returning base64 decoded content', 'info');
+      return base64Decoded;
+    }
+    
+  } catch(e) {
+    log(`Error decoding receipt: ${e.message}`, 'error');
+    return '<p style="color: red;">Error decoding receipt data. Please check the URL format.</p>';
+  }
 }
 
 // Render receipt
 function renderReceipt() {
-    const params = getParams();
-    const container = document.getElementById('receipt');
-    const printBtn = document.getElementById('printBtn');
-    
-    console.log('renderReceipt called with params:', params);
-    console.log('Print button element:', printBtn);
-    
-    if (params.data) {
-        try {
-            const decodedHTML = decodeCompressedHTML(params.data);
-            container.innerHTML = decodedHTML;
-            printBtn.disabled = false;
-            console.log('Receipt rendered successfully, print button enabled');
-            
-            // Auto-print if print parameter is true
-            if (params.print) {
-                // Wait a moment to ensure content is fully rendered
-                setTimeout(() => {
-                    console.log('Auto-printing receipt...');
-                    printReceipt();
-                }, 500);
-            }
-        } catch(e) {
-            container.innerHTML = '<p style="color: red;">Error rendering receipt</p>';
-            console.error('Error rendering receipt:', e);
-        }
-    } else {
-        container.innerHTML = '<p>No receipt data provided. Add ?data=yourBase64Data to the URL.</p>';
-        console.log('No receipt data provided');
-    }
-}
-
-// Enhanced print function with multiple fallback methods
-function printReceipt() {
-    console.log('Print button clicked - attempting to print...');
-    
+  const params = getParams();
+  const container = document.getElementById('receipt');
+  const printBtn = document.getElementById('printBtn');
+  
+  log('renderReceipt called', 'info');
+  log(`Parameters: data=${params.data ? 'present' : 'missing'}, print=${params.print}`, 'info');
+  
+  if (params.data) {
     try {
-        // Method 1: Direct window.print()
-        console.log('Trying Method 1: Direct window.print()');
-        window.print();
-        console.log('Print dialog should have opened');
-        return;
-    } catch (error) {
-        console.error('Method 1 failed:', error);
-    }
-    
-    try {
-        // Method 2: Focus window first, then print
-        console.log('Trying Method 2: Focus + print');
-        window.focus();
+      const decodedHTML = decodeCompressedHTML(params.data);
+      container.innerHTML = decodedHTML;
+      printBtn.disabled = false;
+      log('Receipt rendered successfully, print button enabled', 'success');
+      
+      // Auto-print if requested
+      if (params.print) {
         setTimeout(() => {
-            window.print();
-        }, 100);
-        return;
-    } catch (error) {
-        console.error('Method 2 failed:', error);
+          log('Auto-printing receipt...', 'info');
+          printReceipt();
+        }, 500);
+      }
+    } catch(e) {
+      container.innerHTML = '<p style="color: red;">Error rendering receipt</p>';
+      log(`Error rendering receipt: ${e.message}`, 'error');
     }
-    
-    try {
-        // Method 3: Create print event
-        console.log('Trying Method 3: Print event');
-        const printEvent = new Event('beforeprint');
-        window.dispatchEvent(printEvent);
-        window.print();
-        return;
-    } catch (error) {
-        console.error('Method 3 failed:', error);
-    }
-    
-    // If all methods fail, show user instruction
-    alert('Unable to open print dialog automatically. Please use Ctrl+P (or Cmd+P on Mac) to print this page.');
+  } else {
+    container.innerHTML = '<p>No receipt data provided. Add ?data=yourBase64Data to the URL.</p>';
+    log('No receipt data provided', 'info');
+  }
 }
 
-// Button to manually print
-document.getElementById('printBtn').addEventListener('click', function(event) {
-    console.log('Print button event triggered');
-    event.preventDefault(); // Prevent any default behavior
-    printReceipt();
-});
-
-// Initialize when page loads
+// Event listeners
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM loaded, initializing receipt loader...');
-    renderReceipt();
+  log('DOM loaded, initializing...', 'info');
+  
+  // Detect browser capabilities
+  const browserCaps = detectBrowserCapabilities();
+  
+  // Show share button if supported
+  if (navigator.share) {
+    document.getElementById('shareBtn').style.display = 'inline-block';
+  }
+  
+  // Button event listeners
+  document.getElementById('printBtn').addEventListener('click', printReceipt);
+  document.getElementById('copyBtn').addEventListener('click', copyReceipt);
+  document.getElementById('shareBtn').addEventListener('click', shareReceipt);
+  
+  // Debug toggle
+  document.getElementById('toggleDebug').addEventListener('click', function() {
+    debugVisible = !debugVisible;
+    debugLog.style.display = debugVisible ? 'block' : 'none';
+    this.textContent = debugVisible ? 'Hide Debug Log' : 'Show Debug Log';
+  });
+  
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+      // Let the browser handle Ctrl+P naturally
+      log('Keyboard shortcut Ctrl+P detected', 'info');
+    }
+  });
+  
+  // Initialize the receipt
+  renderReceipt();
 });
 
-// Also render on page load (backup)
+// Window load backup
 window.addEventListener('load', function() {
-    console.log('Window loaded, rendering receipt...');
-    renderReceipt();
+  log('Window loaded', 'info');
+  renderReceipt();
 });
 </script>
 </body>
