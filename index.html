@@ -124,13 +124,24 @@
     <button id="copyBtn" class="btn btn-secondary">📋 Copy Receipt</button>
     <button id="shareBtn" class="btn btn-success" style="display:none;">📤 Share Receipt</button>
     
+    <!-- Bluefy-specific browser switching controls -->
+    <div id="bluefyControls" style="display:none; margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+      <div style="margin-bottom: 10px; font-weight: bold; color: #007cba;">🚀 Open in Full-Featured Browser:</div>
+      <button id="copyUrlBtn" class="btn btn-secondary">📋 Copy Page URL</button>
+      <button id="openSafariBtn" class="btn btn-success">🌐 Open in Safari</button>
+      <button id="openChromeBtn" class="btn btn-success">🌐 Open in Chrome</button>
+      <button id="qrInstructionsBtn" class="btn btn-secondary">📱 Mobile Instructions</button>
+    </div>
+    
     <div id="printStatus"></div>
     
     <div class="instructions">
-      <strong>Alternative Print Methods:</strong><br>
-      • Press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac) to print<br>
-      • Use browser menu: File → Print<br>
-      • For Bluefy users: Try opening in Safari or Chrome for full print support
+      <strong>How to Print:</strong><br>
+      • <strong>Standard browsers:</strong> Click "Print Receipt" button above<br>
+      • <strong>Keyboard shortcut:</strong> Press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac)<br>
+      • <strong>Browser menu:</strong> File → Print<br>
+      • <strong>Bluefy users:</strong> Use "Open in Safari/Chrome" buttons above for full print support<br>
+      • <strong>Mobile:</strong> Use "Mobile Instructions" for QR code and URL sharing
     </div>
     
     <details>
@@ -190,6 +201,13 @@ function detectBrowserCapabilities() {
   log(`User Agent: ${userAgent}`, 'info');
   log(`Print API available: ${typeof window.print === 'function'}`, 'info');
   
+  // Auto-copy URL for Bluefy users
+  if (isBluefy) {
+    setTimeout(() => {
+      copyCurrentURL(true); // Auto-copy silently
+    }, 1000);
+  }
+  
   // Update browser info display
   if (browserInfo) {
     let infoHtml = `<strong>Browser:</strong> ${browserName}`;
@@ -197,7 +215,8 @@ function detectBrowserCapabilities() {
     if (isBluefy) {
       infoHtml += `
         <br><strong>⚠️ Specialized Browser Detected:</strong> Bluefy may have limited print support.
-        <br><strong>Recommendation:</strong> For full print functionality, open this link in Safari or Chrome.
+        <br><strong>📋 URL Auto-Copied:</strong> Current page link copied to clipboard for easy sharing.
+        <br><strong>🚀 Quick Solution:</strong> Use buttons below to open this receipt in Safari or Chrome for full print support.
       `;
     }
     
@@ -279,6 +298,163 @@ function printReceipt() {
     helpHtml += '</div>';
     printStatus.innerHTML = helpHtml;
   }
+}
+
+// Copy current URL to clipboard
+function copyCurrentURL(silent = false) {
+  const currentURL = window.location.href;
+  
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(currentURL).then(() => {
+        log('Current URL copied to clipboard', 'success');
+        if (!silent) {
+          showTemporaryMessage('✅ Page URL copied to clipboard!');
+        }
+      }).catch(err => {
+        log(`Clipboard API failed: ${err.message}`, 'error');
+        fallbackCopyURL(currentURL, silent);
+      });
+    } else {
+      fallbackCopyURL(currentURL, silent);
+    }
+  } catch (error) {
+    log(`URL copy failed: ${error.message}`, 'error');
+    fallbackCopyURL(currentURL, silent);
+  }
+}
+
+// Fallback URL copy method
+function fallbackCopyURL(url, silent = false) {
+  const textArea = document.createElement('textarea');
+  textArea.value = url;
+  textArea.style.position = 'fixed';
+  textArea.style.left = '-999999px';
+  textArea.style.top = '-999999px';
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  
+  try {
+    const successful = document.execCommand('copy');
+    if (successful) {
+      log('Fallback URL copy successful', 'success');
+      if (!silent) {
+        showTemporaryMessage('✅ Page URL copied to clipboard!');
+      }
+    } else {
+      throw new Error('execCommand failed');
+    }
+  } catch (err) {
+    log(`Fallback URL copy failed: ${err.message}`, 'error');
+    if (!silent) {
+      showTemporaryMessage('❌ URL copy failed. Please copy the address bar manually.');
+    }
+  } finally {
+    document.body.removeChild(textArea);
+  }
+}
+
+// Open current page in Safari
+function openInSafari() {
+  const currentURL = window.location.href;
+  
+  try {
+    // For iOS, there's no direct Safari URL scheme, but we can try to open the URL
+    // which should default to Safari if it's the default browser
+    log('Attempting to open in Safari', 'info');
+    
+    // Create a temporary link and click it to open in new window/tab
+    const link = document.createElement('a');
+    link.href = currentURL;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    
+    // Try to trigger the link
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    log('Open in Safari attempted', 'success');
+    showTemporaryMessage('🌐 Opening in new tab/window... If this doesn\'t work, manually paste the copied URL in Safari.');
+    
+  } catch (error) {
+    log(`Open in Safari failed: ${error.message}`, 'error');
+    showTemporaryMessage('❌ Auto-open failed. Please manually paste the copied URL in Safari.');
+  }
+}
+
+// Open current page in Chrome
+function openInChrome() {
+  const currentURL = window.location.href;
+  
+  try {
+    log('Attempting to open in Chrome', 'info');
+    
+    // Try Chrome URL scheme for iOS
+    let chromeURL;
+    if (currentURL.startsWith('https://')) {
+      chromeURL = currentURL.replace('https://', 'googlechromes://');
+    } else if (currentURL.startsWith('http://')) {
+      chromeURL = currentURL.replace('http://', 'googlechrome://');
+    } else {
+      chromeURL = 'googlechromes://' + currentURL;
+    }
+    
+    log(`Chrome URL scheme: ${chromeURL}`, 'info');
+    
+    // Create a temporary link with Chrome URL scheme
+    const link = document.createElement('a');
+    link.href = chromeURL;
+    link.style.display = 'none';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    log('Chrome URL scheme attempted', 'success');
+    showTemporaryMessage('🌐 Opening in Chrome... If Chrome doesn\'t open, manually paste the copied URL in Chrome.');
+    
+    // Fallback: also try normal link opening
+    setTimeout(() => {
+      const fallbackLink = document.createElement('a');
+      fallbackLink.href = currentURL;
+      fallbackLink.target = '_blank';
+      fallbackLink.rel = 'noopener';
+      document.body.appendChild(fallbackLink);
+      fallbackLink.click();
+      document.body.removeChild(fallbackLink);
+    }, 1000);
+    
+  } catch (error) {
+    log(`Open in Chrome failed: ${error.message}`, 'error');
+    showTemporaryMessage('❌ Auto-open failed. Please manually paste the copied URL in Chrome.');
+  }
+}
+
+// Generate QR code for the current URL (text-based)
+function generateQRInstructions() {
+  const currentURL = window.location.href;
+  const printStatus = document.getElementById('printStatus');
+  
+  const instructions = `
+    <div class="info" style="margin: 15px 0; padding: 15px; background: #e3f2fd; border: 1px solid #2196f3; border-radius: 4px;">
+      <strong>📱 Easy Mobile Access:</strong><br>
+      <strong>Option 1:</strong> URL copied to clipboard - paste in Safari or Chrome<br>
+      <strong>Option 2:</strong> Use QR code scanner to scan this URL:<br>
+      <div style="word-break: break-all; font-family: monospace; background: white; padding: 10px; margin: 10px 0; border: 1px solid #ddd;">
+        ${currentURL}
+      </div>
+      <strong>Option 3:</strong> Try the browser buttons above<br>
+      <em>💡 Pro tip: Once opened in Safari/Chrome, press Ctrl+P or Cmd+P to print!</em>
+    </div>
+  `;
+  
+  if (printStatus) {
+    printStatus.innerHTML = instructions;
+  }
+  
+  log('QR instructions displayed', 'info');
 }
 
 // Copy receipt content to clipboard
@@ -444,6 +620,11 @@ document.addEventListener('DOMContentLoaded', function() {
   // Detect browser capabilities
   const browserCaps = detectBrowserCapabilities();
   
+  // Show Bluefy-specific controls if in Bluefy browser
+  if (browserCaps.isBluefy) {
+    document.getElementById('bluefyControls').style.display = 'block';
+  }
+  
   // Show share button if supported
   if (navigator.share) {
     document.getElementById('shareBtn').style.display = 'inline-block';
@@ -453,6 +634,12 @@ document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('printBtn').addEventListener('click', printReceipt);
   document.getElementById('copyBtn').addEventListener('click', copyReceipt);
   document.getElementById('shareBtn').addEventListener('click', shareReceipt);
+  
+  // Bluefy-specific button listeners
+  document.getElementById('copyUrlBtn').addEventListener('click', () => copyCurrentURL(false));
+  document.getElementById('openSafariBtn').addEventListener('click', openInSafari);
+  document.getElementById('openChromeBtn').addEventListener('click', openInChrome);
+  document.getElementById('qrInstructionsBtn').addEventListener('click', generateQRInstructions);
   
   // Debug toggle
   document.getElementById('toggleDebug').addEventListener('click', function() {
