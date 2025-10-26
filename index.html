@@ -199,7 +199,7 @@ function detectBrowserCapabilities() {
   if (userAgent.includes('Bluefy')) {
     isBluefy = true;
     browserName = 'Bluefy Web BLE Browser';
-    printSupported = false; // Assume limited support until proven otherwise
+    printSupported = false;
   } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
     browserName = 'Safari';
   } else if (userAgent.includes('Chrome')) {
@@ -217,7 +217,7 @@ function detectBrowserCapabilities() {
   // Auto-copy URL for Bluefy users
   if (isBluefy) {
     setTimeout(() => {
-      copyCurrentURL(true); // Auto-copy silently
+      copyCurrentURL(true);
     }, 1000);
   }
   
@@ -233,88 +233,45 @@ function detectBrowserCapabilities() {
       `;
     } else {
       infoHtml += `
-        <br><strong>✅ Print Support:</strong> Full print functionality available
-        <br><strong>🖨️ Ready:</strong> You can print this receipt directly from this browser
+        <br><strong>✅ Print Support:</strong> Full printing capabilities available
+        <br><strong>🎯 Ready to Print:</strong> Use the print button or Ctrl+P (Cmd+P on Mac)
       `;
     }
     
     browserInfo.innerHTML = infoHtml;
   }
   
-  return { isBluefy, browserName, printSupported };
+  return {
+    isBluefy,
+    browserName,
+    printSupported
+  };
 }
 
-// Enhanced print function with multiple methods and fallbacks
+// Print receipt
 function printReceipt() {
-  const printStatus = document.getElementById('printStatus');
-  const browserCaps = detectBrowserCapabilities();
-  
-  log('Print button clicked', 'info');
-  
-  // Clear previous status
-  if (printStatus) printStatus.innerHTML = '';
-  
-  // Method 1: Standard window.print()
   try {
-    log('Attempting Method 1: Standard window.print()', 'info');
+    log('Print function called', 'info');
     
     if (typeof window.print === 'function') {
       window.print();
-      log('window.print() called successfully', 'success');
-      
-      if (printStatus) {
-        printStatus.innerHTML = '<div class="success-info">✅ Print dialog should have opened! If not, try Ctrl+P or Cmd+P</div>';
-      }
-      return;
+      log('Print dialog opened successfully', 'success');
     } else {
-      throw new Error('window.print is not available');
-    }
-  } catch (error) {
-    log(`Method 1 failed: ${error.message}`, 'error');
-  }
-  
-  // Method 2: Focus then print
-  try {
-    log('Attempting Method 2: Focus + print', 'info');
-    window.focus();
-    setTimeout(() => {
-      window.print();
-      log('Delayed print called', 'success');
-    }, 200);
-    return;
-  } catch (error) {
-    log(`Method 2 failed: ${error.message}`, 'error');
-  }
-  
-  // Method 3: Print event approach
-  try {
-    log('Attempting Method 3: Print event', 'info');
-    const printEvent = new Event('beforeprint');
-    window.dispatchEvent(printEvent);
-    window.print();
-    log('Print event method completed', 'success');
-    return;
-  } catch (error) {
-    log(`Method 3 failed: ${error.message}`, 'error');
-  }
-  
-  // All methods failed - show comprehensive help
-  log('All automatic print methods failed', 'error');
-  
-  if (printStatus) {
-    let helpHtml = '<div class="error-info">';
-    helpHtml += '<strong>⚠️ Automatic printing not available</strong><br>';
-    helpHtml += 'Please try these alternatives:<br>';
-    helpHtml += '• Press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac)<br>';
-    helpHtml += '• Use browser menu: File → Print<br>';
-    
-    if (browserCaps.isBluefy) {
-      helpHtml += '• <strong>Recommended:</strong> Open this page in Safari or Chrome for full print support<br>';
-      helpHtml += '• Copy the receipt text and paste into a document to print<br>';
+      throw new Error('Print function not available');
     }
     
-    helpHtml += '</div>';
-    printStatus.innerHTML = helpHtml;
+  } catch (error) {
+    log(`Print failed: ${error.message}`, 'error');
+    
+    const printStatus = document.getElementById('printStatus');
+    if (printStatus) {
+      printStatus.innerHTML = `
+        <div class="error-info">
+          <strong>❌ Print Error:</strong> ${error.message}<br>
+          <strong>💡 Try:</strong> Use Ctrl+P (Windows) or Cmd+P (Mac), or copy the receipt and paste into a document to print.
+        </div>
+      `;
+    }
   }
 }
 
@@ -325,7 +282,7 @@ function copyCurrentURL(silent = false) {
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(currentURL).then(() => {
-        log('Current URL copied to clipboard', 'success');
+        log('URL copied using Clipboard API', 'success');
         if (!silent) {
           showTemporaryMessage('✅ Page URL copied to clipboard!');
         }
@@ -343,7 +300,7 @@ function copyCurrentURL(silent = false) {
 }
 
 // Fallback URL copy method
-function fallbackCopyURL(url, silent = false) {
+function fallbackCopyURL(url, silent) {
   const textArea = document.createElement('textarea');
   textArea.value = url;
   textArea.style.position = 'fixed';
@@ -373,103 +330,157 @@ function fallbackCopyURL(url, silent = false) {
   }
 }
 
-// Open current page in Safari
+// ENHANCED: Open current page in Safari
 function openInSafari() {
   const currentURL = window.location.href;
   
   try {
-    // For iOS Safari, we need to use a different approach
     log('Attempting to open in Safari', 'info');
     
-    // Method 1: Try Safari-specific URL scheme first
-    // iOS Safari doesn't have a custom URL scheme like Chrome, but we can try a few approaches
+    // Detect platform for better handling
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isMac = /Mac|macOS/.test(navigator.userAgent);
+    const isAndroid = /Android/.test(navigator.userAgent);
     
-    // Create a link that should prompt to open in Safari
-    const safariURL = currentURL; // Keep original URL
-    
-    // Try to create a dialog that prompts app switching
-    const userConfirmed = confirm('Open this page in Safari for full print functionality?\n\nClick OK to open in Safari, or Cancel to copy the URL manually.');
-    
-    if (userConfirmed) {
-      // Method 1: Try window.open with Safari-friendly parameters
-      const safariWindow = window.open(safariURL, '_blank', 'location=yes,toolbar=yes,menubar=yes');
+    if (isIOS) {
+      // On iOS, try multiple approaches
+      log('iOS detected - trying Safari-specific methods', 'info');
       
-      if (safariWindow) {
-        log('Safari window opened successfully', 'success');
-        showTemporaryMessage('🌐 Opening in Safari... If it opens in Bluefy instead, try copying the URL manually.');
+      // Method 1: Try Safari URL scheme (if available)
+      try {
+        const safariScheme = currentURL.replace(/^https?:\/\//, 'x-web-search://');
+        window.location.href = safariScheme;
+        log('iOS: Attempted Safari URL scheme', 'info');
+        showTemporaryMessage('🌐 Opening in Safari... If this doesn\'t work, URL will be copied as backup.');
         
-        // Close the new window after a delay and inform user
+        // Backup after delay
         setTimeout(() => {
-          try {
-            safariWindow.close();
-          } catch (e) {
-            // Window might already be closed or security restrictions
-          }
-          showTemporaryMessage('💡 If the page opened in Bluefy instead of Safari, please manually copy the URL and paste it in Safari.');
+          copyCurrentURL(true);
+          showTemporaryMessage('📋 URL copied as backup. Tap Safari and paste if needed.');
         }, 3000);
-      } else {
-        throw new Error('Window opening blocked');
+        
+      } catch (e) {
+        // Method 2: Direct navigation fallback
+        window.location.href = currentURL;
+        log('iOS: Used direct navigation fallback', 'info');
       }
-    } else {
-      // User chose manual method
+      
+    } else if (isMac) {
+      // On macOS, copy URL and give specific instructions
       copyCurrentURL(false);
-      showTemporaryMessage('📋 URL copied! Please open Safari and paste the URL in the address bar.');
+      showTemporaryMessage('📋 URL copied! Open Safari, press Cmd+L, paste (Cmd+V), and press Enter.');
+      log('macOS: URL copied with Safari-specific instructions', 'info');
+      
+    } else if (isAndroid) {
+      // On Android, Safari isn't available - suggest Chrome instead
+      showTemporaryMessage('ℹ️ Safari isn\'t available on Android. Try the Chrome button instead!');
+      log('Android: Safari not available, suggesting Chrome', 'info');
+      
+    } else {
+      // On other platforms (Windows, etc.), copy URL with instructions
+      copyCurrentURL(false);
+      showTemporaryMessage('📋 URL copied! Please paste it in Safari manually.');
+      log('Generic platform: URL copied for manual Safari opening', 'info');
     }
     
     log('Safari opening attempt completed', 'success');
     
   } catch (error) {
     log(`Safari opening failed: ${error.message}`, 'error');
-    // Fallback: copy URL and show instructions
+    // Ultimate fallback
     copyCurrentURL(false);
     showTemporaryMessage('❌ Auto-open failed. URL copied to clipboard - please paste it in Safari manually.');
   }
 }
 
-// Open current page in Chrome
+// ENHANCED: Open current page in Chrome
 function openInChrome() {
   const currentURL = window.location.href;
   
   try {
     log('Attempting to open in Chrome', 'info');
     
-    // Try Chrome URL scheme for iOS
-    let chromeURL;
-    if (currentURL.startsWith('https://')) {
-      chromeURL = currentURL.replace('https://', 'googlechromes://');
-    } else if (currentURL.startsWith('http://')) {
-      chromeURL = currentURL.replace('http://', 'googlechrome://');
+    // Detect platform for better handling
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isMac = /Mac|macOS/.test(navigator.userAgent);
+    const isAndroid = /Android/.test(navigator.userAgent);
+    
+    if (isIOS) {
+      // On iOS, use Chrome URL schemes
+      log('iOS detected - trying Chrome URL schemes', 'info');
+      
+      let chromeURL;
+      if (currentURL.startsWith('https://')) {
+        chromeURL = currentURL.replace('https://', 'googlechromes://');
+      } else if (currentURL.startsWith('http://')) {
+        chromeURL = currentURL.replace('http://', 'googlechrome://');
+      } else {
+        chromeURL = 'googlechromes://' + currentURL;
+      }
+      
+      log(`iOS Chrome URL scheme: ${chromeURL}`, 'info');
+      
+      // Try the Chrome URL scheme
+      window.location.href = chromeURL;
+      showTemporaryMessage('🌐 Opening in Chrome... If Chrome doesn\'t open, URL will be copied as backup.');
+      
+      // Backup: copy URL after delay
+      setTimeout(() => {
+        copyCurrentURL(true);
+        showTemporaryMessage('📋 URL copied as backup. Open Chrome and paste if needed.');
+      }, 3000);
+      
+    } else if (isAndroid) {
+      // On Android, try intent-based opening
+      log('Android detected - trying Chrome intent', 'info');
+      
+      try {
+        // Try Chrome intent for Android
+        const intent = `intent://${currentURL.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`;
+        window.location.href = intent;
+        log('Android: Attempted Chrome intent', 'info');
+        
+        // Fallback after delay
+        setTimeout(() => {
+          const fallbackWindow = window.open(currentURL, '_blank', 'noopener,noreferrer');
+          if (!fallbackWindow) {
+            copyCurrentURL(false);
+            showTemporaryMessage('📋 URL copied! Please paste it in Chrome manually.');
+          }
+        }, 2000);
+        
+      } catch (e) {
+        // Fallback to window.open
+        const chromeWindow = window.open(currentURL, '_blank', 'noopener,noreferrer');
+        if (!chromeWindow) {
+          throw new Error('Window opening blocked');
+        }
+      }
+      
+    } else if (isMac) {
+      // On macOS, copy URL and give specific instructions
+      copyCurrentURL(false);
+      showTemporaryMessage('📋 URL copied! Open Chrome, press Cmd+L, paste (Cmd+V), and press Enter.');
+      log('macOS: URL copied with Chrome-specific instructions', 'info');
+      
     } else {
-      chromeURL = 'googlechromes://' + currentURL;
+      // On other platforms (Windows, etc.)
+      copyCurrentURL(false);
+      showTemporaryMessage('📋 URL copied! Please paste it in Chrome manually.');
+      log('Generic platform: URL copied for manual Chrome opening', 'info');
     }
     
-    log(`Chrome URL scheme: ${chromeURL}`, 'info');
-    
-    // Create a temporary link with Chrome URL scheme
-    const link = document.createElement('a');
-    link.href = chromeURL;
-    link.style.display = 'none';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    log('Chrome URL scheme attempted', 'success');
-    showTemporaryMessage('🌐 Opening in Chrome... You should see a dialog to "Open in Chrome" app.');
-    
-    // Provide fallback instructions without opening another window
-    setTimeout(() => {
-      showTemporaryMessage('💡 If Chrome didn\'t open, you can manually copy the URL and paste it in Chrome.');
-    }, 3000);
+    log('Chrome opening attempt completed', 'success');
     
   } catch (error) {
-    log(`Open in Chrome failed: ${error.message}`, 'error');
+    log(`Chrome opening failed: ${error.message}`, 'error');
+    // Ultimate fallback
     copyCurrentURL(false);
     showTemporaryMessage('❌ Auto-open failed. URL copied to clipboard - please paste it in Chrome manually.');
   }
 }
 
-// Generate QR code for the current URL (text-based)
+// Generate QR code instructions
 function generateQRInstructions() {
   const currentURL = window.location.href;
   const printStatus = document.getElementById('printStatus');
@@ -569,7 +580,7 @@ function showTemporaryMessage(message) {
     printStatus.innerHTML = `<div class="success-info">${message}</div>`;
     setTimeout(() => {
       printStatus.innerHTML = '';
-    }, 3000);
+    }, 5000);
   }
 }
 
@@ -582,7 +593,7 @@ function getParams() {
   };
 }
 
-// Enhanced decode function (same as before)
+// Enhanced decode function
 function decodeCompressedHTML(data) {
   try {
     let decodedData = data;
