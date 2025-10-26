@@ -337,30 +337,15 @@ function openInSafari() {
   try {
     log('Attempting to open in Safari', 'info');
     
-    // Simple approach: try to open in new window with Safari-friendly parameters
-    // iOS should handle this by offering to open in Safari
-    const safariWindow = window.open(currentURL, '_blank', 'location=yes,toolbar=yes');
+    // Safari doesn't have a URL scheme like Chrome, so copy URL and provide instructions
+    copyCurrentURL(false);
+    showTemporaryMessage('📋 URL copied! Please open Safari, tap the address bar, paste (long press + paste), and tap Go.');
     
-    if (safariWindow) {
-      log('Safari window opened successfully', 'success');
-      showTemporaryMessage('🌐 Opening in new window... If it doesn\'t switch to Safari automatically, please copy the URL manually.');
-      
-      // Also auto-copy URL as backup
-      setTimeout(() => {
-        copyCurrentURL(true); // Silent copy
-        showTemporaryMessage('📋 URL also copied to clipboard as backup. Paste in Safari if needed.');
-      }, 2000);
-    } else {
-      throw new Error('Window opening blocked');
-    }
-    
-    log('Safari opening attempt completed', 'success');
+    log('Safari instructions provided with copied URL', 'success');
     
   } catch (error) {
     log(`Safari opening failed: ${error.message}`, 'error');
-    // Fallback: copy URL and show instructions
-    copyCurrentURL(false);
-    showTemporaryMessage('❌ Auto-open failed. URL copied to clipboard - please paste it in Safari manually.');
+    showTemporaryMessage('❌ Please manually copy the URL from the address bar and paste it in Safari.');
   }
 }
 
@@ -383,42 +368,22 @@ function openInChrome() {
     
     log(`Chrome URL scheme: ${chromeURL}`, 'info');
     
-    // Create a temporary link with Chrome URL scheme
-    const link = document.createElement('a');
-    link.href = chromeURL;
-    link.style.display = 'none';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Use location.href to trigger the Chrome app switch
+    window.location.href = chromeURL;
     
     log('Chrome URL scheme attempted', 'success');
-    showTemporaryMessage('🌐 Opening in Chrome... You should see a dialog to "Open in Chrome" app.');
+    showTemporaryMessage('🌐 Switching to Chrome app... If Chrome doesn\'t open, URL will be copied as backup.');
     
-    // IMPORTANT: Keep the fallback window opening - this might be what triggers the dialog
+    // Backup: Copy URL after a delay in case Chrome doesn't open
     setTimeout(() => {
-      try {
-        const fallbackWindow = window.open(currentURL, '_blank', 'noopener,noreferrer');
-        if (fallbackWindow) {
-          log('Fallback window opened', 'success');
-          // Close the fallback window quickly since the Chrome app should open
-          setTimeout(() => {
-            try {
-              fallbackWindow.close();
-            } catch (e) {
-              // Window might be closed already
-            }
-          }, 1000);
-        }
-      } catch (fallbackError) {
-        log(`Fallback failed: ${fallbackError.message}`, 'error');
-      }
-    }, 500);
+      copyCurrentURL(true);
+      showTemporaryMessage('📋 URL copied as backup. Open Chrome manually and paste if needed.');
+    }, 3000);
     
   } catch (error) {
     log(`Open in Chrome failed: ${error.message}`, 'error');
     copyCurrentURL(false);
-    showTemporaryMessage('❌ Auto-open failed. URL copied to clipboard - please paste it in Chrome manually.');
+    showTemporaryMessage('❌ Chrome switch failed. URL copied to clipboard - please paste it in Chrome manually.');
   }
 }
 
